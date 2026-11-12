@@ -11,6 +11,7 @@ It is a static site (GitHub Pages) with Firebase for sign-in and shared data. Th
 | `https://atsmah123.github.io/party-pairs/` | The party. Send this one to guests. |
 | `.../party-pairs/?preview=1` | Unlocks the hunt on your phone before the party starts, so you can test with a friend. |
 | `.../party-pairs/?demo=1` | Runs the whole game on one phone with twelve made-up guests. Touches nothing in Firebase. |
+| `.../party-pairs/stress.html` | Stress test for the hosts. See below. |
 
 ## How the game works
 
@@ -31,7 +32,19 @@ In the [Firebase console](https://console.firebase.google.com) for the project i
 3. **Firestore Database:** create the database.
 4. **Firestore Database > Rules:** paste the contents of `firestore.rules` and publish.
 
-The free Spark plan is enough. A 30-guest night should stay well under its daily limit of 50,000 reads.
+The free Spark plan allows 50,000 database reads a day and stops the database, without charging, if a day goes over. Every phone re-reads each card, pair and rule that changes, so reads grow with guests times pairs. A rough estimate for 40 guests is 15,000 to 35,000 reads on the night. The stress test below reports the real figure for one run.
+
+Firebase also allows 100 new sign-ups an hour from one network. Guests who join before the party from home are not affected. If a whole room joins without Google on the same Wi-Fi, the limit is 100 in an hour.
+
+## Stress test
+
+Open `stress.html` on the live site and tap **Start the test**. It signs in 40 guests without Google on the real Firebase project from that one page, saves 40 cards in the same instant, plays 3 rounds in which every guest pairs at once, writes house rules, and checks that all 40 ended up seeing the same party. It reports how long each step took and how many database reads the run used, then removes the test guests, pairs and rules.
+
+- `?n=40` sets the number of guests (2 to 60) and `&rounds=3` the rounds (1 to 6).
+- Test guests only pair with each other. Real guests who are signed up will see them appear in the guest web for about a minute.
+- One run uses roughly a fifth of a day's free reads and 40 of the hour's 100 sign-ups, so do not run it more than twice in an hour.
+- It refuses to run within 12 hours of the party.
+- If the database still has an older copy of `firestore.rules`, the test cannot remove its pairs and rules, and says so. Paste the current rules and delete the `pairs` and `rules` collections in the console.
 
 ## Sign-in
 
@@ -67,6 +80,7 @@ Repository **Settings > Pages > Deploy from a branch > `main` / root**. The site
 | `backend-firebase.js` | Firebase sign-in and Firestore |
 | `backend-demo.js` | The one-phone demo |
 | `firestore.rules` | Database rules |
+| `stress.html`, `stress.js` | The stress test |
 
 Run the logic tests with `npm test` (Node 20 or newer).
 
@@ -74,3 +88,4 @@ Run the logic tests with `npm test` (Node 20 or newer).
 
 - A guest who joins without Google is tied to that browser. Opening the link in a second browser makes a second card, unless they saved the first one to Google.
 - Codes and cards are readable by any signed-in guest who goes looking in the browser's developer tools. That is fine for a party and not for anything that matters.
+- Which clue a guest is on, their nudges and their skips are kept on their phone, not in the database. A guest who switches phone mid-hunt is dealt a clue again.

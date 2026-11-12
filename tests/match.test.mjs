@@ -95,14 +95,15 @@ test("pickTarget returns null when everyone is met, and ignores guests who left"
   assert.equal(M.partnersOf("me", pairs, new Set(guests.map((g) => g.id))).size, 3);
 });
 
-test("a guest already hunted by many drops down the list", () => {
+test("a guest who has met many drops below an equal match who has met few", () => {
   const crowd = [
     { id: "me", interests: ["rock", "hiking"] },
-    { id: "star", interests: ["rock", "hiking"] },
-    { id: "near", interests: ["metal", "climbing"] },
-    ...[1, 2, 3, 4].map((n) => ({ id: "h" + n, interests: ["dogs"], target: "star" })),
+    { id: "busy", interests: ["rock", "hiking"] },
+    { id: "free", interests: ["rock", "hiking"] },
+    ...[1, 2, 3, 4].map((n) => ({ id: "h" + n, interests: ["dogs"] })),
   ];
-  assert.equal(M.pickTarget(crowd[0], crowd, []).guest.id, "near");
+  const pairs = [1, 2, 3, 4].map((n) => ({ a: "busy", b: "h" + n }));
+  assert.equal(M.pickTarget(crowd[0], crowd, pairs).guest.id, "free");
 });
 
 test("codes are four consonants and never collide", () => {

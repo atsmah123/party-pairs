@@ -69,10 +69,28 @@ const metSet = (uid = S.uid) => M.partnersOf(uid, S.pairs, guestIds());
 const guest = (id) => S.guests.find((g) => g.id === id);
 const huntOpen = () => PREVIEW || Date.now() >= Date.parse(PARTY.huntOpens);
 
+// Where a guest is in the hunt is kept on their phone, not in the database:
+// nobody else needs it, and every database change is re-read by every phone.
+let hunt = { target: null, hints: 0, skipped: [] };
+const huntKey = () => "pairs-hunt:" + S.uid;
+function loadHunt() {
+  hunt = { target: null, hints: 0, skipped: [] };
+  try {
+    const saved = JSON.parse(readStore("localStorage", huntKey()) || "null");
+    if (saved && typeof saved === "object") {
+      hunt = { target: saved.target || null, hints: Number(saved.hints) || 0, skipped: Array.isArray(saved.skipped) ? saved.skipped : [] };
+    }
+  } catch { /* start fresh */ }
+}
+function setHunt(change) {
+  hunt = { ...hunt, ...change };
+  writeStore("localStorage", huntKey(), JSON.stringify(hunt));
+}
+
 function currentTarget() {
   const m = me();
-  if (!m || !m.target) return null;
-  const t = guest(m.target);
+  if (!m || !hunt.target) return null;
+  const t = guest(hunt.target);
   return t && !metSet().has(t.id) ? t : null;
 }
 
@@ -282,7 +300,7 @@ function viewHunt() {
       <p class="note">You have met ${met.size} of ${plural(others.length, "guest", "guests")}.</p>`;
   }
 
-  const hints = Math.min(m.hints || 0, 2);
+  const hints = Math.min(hunt.hints, 2);
   const nudges = [
     hints >= 1 ? `<p class="pcard__row"><span class="label">The face on their card</span><span class="pcard__big">${face(target)}</span></p>` : "",
     hints >= 2 ? `<p class="pcard__row"><span class="label">Their name starts with</span><span class="pcard__big">${esc(target.name.trim().charAt(0).toUpperCase())}</span></p>` : "",
@@ -355,7 +373,9 @@ function viewRules() {
       <button class="btn btn--primary" type="submit">Add our rule</button>
     </form>`;
   }).join("");
-  const rules = [...S.rules].sort((a, b) => b.at - a.at);
+  // A rule shows only while both guests who earned it are still at the party.
+  const live = new Set(livePairs().map((p) => p.id));
+  const rules = S.rules.filter((r) => live.has(r.id)).sort((a, b) => b.at - a.at);
   const list = rules.length
     ? `<ol class="rows">${rules.map((r) => `<li class="rows__row"><p class="rows__text">${esc(r.text)}</p><p class="note">${esc(pairName(r.id, r.by))}</p></li>`).join("")}</ol>`
     : `<p class="note">No house rules yet.</p>`;
@@ -569,7 +589,7 @@ function markSeen(ids) {
 
 // ---------- reacting to data ----------
 
-let clearing = null, firstLook = true;
+let firstLook = true, healing = false;
 function reconcile() {
   const m = me();
   if (!m || S.phase !== "app") return;
@@ -591,13 +611,13 @@ function reconcile() {
       S.sheet = { other: next.a === S.uid ? next.b : next.a, role: next.by === S.uid ? "finder" : "found" };
     }
   }
-  // The guest being hunted has been met, or has left: free the slot.
+  // Two guests who joined in the same instant can draw the same code. The
+  // one with the later id quietly takes a new one.
   const real = S.guests.find((g) => g.id === S.uid);
-  if (real && real.target && !currentTarget() && S.got.pairs && clearing !== real.target) {
-    clearing = real.target;
-    send(backend.updateGuest({ target: null, hints: 0 }));
+  if (real && !healing && S.guests.some((g) => g.id < S.uid && g.code === real.code)) {
+    healing = true;
+    send(backend.updateGuest({ code: M.makeCode(new Set(S.guests.map((g) => g.code))) })).finally(() => { healing = false; });
   }
-  if (real && !real.target) clearing = null;
   if (S.selected && !guest(S.selected)) S.selected = null;
 }
 
@@ -693,21 +713,23 @@ const actions = {
     window.scrollTo(0, 0);
   },
   deal() {
-    const pick = M.pickTarget(me(), S.guests, S.pairs);
+    const pick = M.pickTarget({ ...me(), skipped: hunt.skipped }, S.guests, S.pairs);
     if (!pick) return;
     S.huntMsg = ""; S.draft.code = ""; S.revealed = false;
-    send(backend.updateGuest({ target: pick.guest.id, hints: 0, skipped: pick.recycled ? [] : me().skipped || [] }));
+    setHunt({ target: pick.guest.id, hints: 0, skipped: pick.recycled ? [] : hunt.skipped });
+    render();
   },
   nudge() {
-    send(backend.updateGuest({ hints: Math.min(2, (me().hints || 0) + 1) }));
+    setHunt({ hints: Math.min(2, hunt.hints + 1) });
+    render();
   },
   skip() {
     const m = me();
-    const skipped = [...new Set([...(m.skipped || []), m.target])];
-    const pick = M.pickTarget({ ...m, skipped }, S.guests, S.pairs, { avoid: m.target });
+    const skipped = [...new Set([...hunt.skipped, hunt.target])];
+    const pick = M.pickTarget({ ...m, skipped }, S.guests, S.pairs, { avoid: hunt.target });
     S.draft.code = ""; S.revealed = false;
-    S.huntMsg = pick && pick.guest.id === m.target ? "They are the only guest left to find." : "";
-    send(backend.updateGuest({ target: pick ? pick.guest.id : null, hints: 0, skipped: pick && pick.recycled ? [] : skipped }));
+    S.huntMsg = pick && pick.guest.id === hunt.target ? "They are the only guest left to find." : "";
+    setHunt({ target: pick ? pick.guest.id : null, hints: 0, skipped: pick && pick.recycled ? [] : skipped });
     render();
   },
   reveal: () => { S.revealed = true; render(); },
@@ -716,6 +738,7 @@ const actions = {
   "leave-yes"() {
     S.leaving = false;
     S.pendingMe = null;
+    setHunt({ target: null, hints: 0, skipped: [] });
     S.sheet = null;
     S.join = blankJoin();
     S.phase = "join";
@@ -766,7 +789,7 @@ const forms = {
     const g = S.guests.find((x) => x.code === code);
     if (!g) return say("No guest has that code. Check the letters.");
     if (metSet().has(g.id)) return say(`You have already paired with ${g.name}.`);
-    if (g.id !== target.id && g.target !== S.uid) return say("Not your pair. Take a sip and keep asking.");
+    if (g.id !== target.id) return say("Not your pair. Take a sip and keep asking.");
 
     const id = M.pairId(S.uid, g.id);
     const [a, b] = S.uid < g.id ? [S.uid, g.id] : [g.id, S.uid];
@@ -774,8 +797,13 @@ const forms = {
     markSeen([id]);
     S.draft.code = ""; S.huntMsg = ""; S.revealed = false;
     S.sheet = { other: g.id, role: "finder" };
-    send(backend.createPair({ id, a, b, by: S.uid, unlock }));
-    if (m.target === g.id) send(backend.updateGuest({ target: null, hints: 0 }));
+    setHunt({ target: null, hints: 0 });
+    // If both guests type each other's code in the same second, the database
+    // keeps the first and refuses the second. That is fine as long as the pair exists.
+    Promise.resolve(backend.createPair({ id, a, b, by: S.uid, unlock })).catch((e) => {
+      console.error(e);
+      setTimeout(() => { if (!S.pairs.some((p) => p.id === id)) fail(); }, 2500);
+    });
     render();
   },
   rule(form) {
@@ -795,7 +823,7 @@ function saveCard() {
     send(backend.updateGuest(data));
   } else {
     const code = M.makeCode(new Set(S.guests.map((g) => g.code)));
-    const full = { ...data, code, target: null, hints: 0, skipped: [] };
+    const full = { ...data, code };
     S.pendingMe = { ...full, id: S.uid };
     send(backend.saveGuest(full));
   }
@@ -891,6 +919,7 @@ function begin(account) {
   const offline = "Can’t reach the party server. Check your connection and reload.";
   S.account = account;
   S.uid = account.uid;
+  loadHunt();
   S.phase = "loading";
   S.authMsg = "";
   render();

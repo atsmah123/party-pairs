@@ -3,7 +3,7 @@
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import {
-  getAuth, signInAnonymously, GoogleAuthProvider, signInWithPopup, linkWithPopup, signInWithCredential, signOut,
+  getAuth, signInAnonymously, GoogleAuthProvider, signInWithPopup, linkWithPopup, signInWithCredential, signOut, deleteUser,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {
   initializeFirestore, getFirestore, persistentLocalCache, persistentMultipleTabManager,
@@ -45,8 +45,13 @@ export function explain(err, doing = "") {
 
 const millis = (t) => (t && typeof t.toMillis === "function" ? t.toMillis() : Date.now());
 
-export async function connect() {
-  const app = initializeApp(firebaseConfig);
+/**
+ * Connect one guest. The app calls this once with no options. The stress test
+ * (stress.html) calls it many times in one page: `name` gives each simulated
+ * guest a separate sign-in, and `cache: false` skips the on-phone cache.
+ */
+export async function connect({ name, cache = true } = {}) {
+  const app = name ? initializeApp(firebaseConfig, name) : initializeApp(firebaseConfig);
   const auth = getAuth(app);
   await auth.authStateReady();
   if (!SIGN_IN.google && !auth.currentUser) await signInAnonymously(auth);
@@ -61,7 +66,9 @@ export async function connect() {
   // A cache on the phone means a reload only downloads what changed.
   let db;
   try {
-    db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
+    db = cache
+      ? initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) })
+      : getFirestore(app);
   } catch {
     db = getFirestore(app);
   }
@@ -72,7 +79,9 @@ export async function connect() {
       { includeMetadataChanges: true },
       (snap) => cb(
         snap.docs.map((d) => ({ ...d.data(), id: d.id, at: millis(d.data().at) })),
-        { fromCache: snap.metadata.fromCache },
+        // `changes` is how many documents this update delivered, which is
+        // what Firestore bills as reads.
+        { fromCache: snap.metadata.fromCache, changes: snap.docChanges().length },
       ),
       (err) => onError(explain(err)),
     );
@@ -112,10 +121,14 @@ export async function connect() {
       return signOut(auth);
     },
     watch({ onGuests, onPairs, onRules, onError }) {
-      watchAll("guests", onGuests, onError);
-      watchAll("pairs", onPairs, onError);
-      watchAll("rules", onRules, onError);
+      const stops = [watchAll("guests", onGuests, onError), watchAll("pairs", onPairs, onError), watchAll("rules", onRules, onError)];
+      return () => stops.forEach((stop) => stop());
     },
+    /** Stress test only: delete this sign-in altogether. */
+    removeAccount() {
+      return deleteUser(auth.currentUser);
+    },
+    db,
     saveGuest(data) {
       return setDoc(doc(db, "guests", uid()), { ...data, at: serverTimestamp() });
     },

@@ -32,6 +32,7 @@ service cloud.firestore {
     }
 
     // A confirmed pair. Written once by one of the two guests, never changed.
+    // The guest who wrote it may delete it (the stress test tidies up this way).
     match /pairs/{pairId} {
       allow read: if signedIn();
       allow create: if signedIn()
@@ -41,7 +42,8 @@ service cloud.firestore {
         && pairId == request.resource.data.a + '_' + request.resource.data.b
         && request.resource.data.by == request.auth.uid
         && (request.resource.data.a == request.auth.uid || request.resource.data.b == request.auth.uid);
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if signedIn() && resource.data.by == request.auth.uid;
     }
 
     // One house rule per pair that earned it, written by either of the two.
@@ -56,7 +58,7 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/pairs/$(pairId)).data.unlock == true
         && (get(/databases/$(database)/documents/pairs/$(pairId)).data.a == request.auth.uid
             || get(/databases/$(database)/documents/pairs/$(pairId)).data.b == request.auth.uid);
-      allow delete: if false;
+      allow delete: if signedIn() && resource.data.by == request.auth.uid;
     }
   }
 }

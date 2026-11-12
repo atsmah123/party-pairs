@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Pairs stress test</title>
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#0a0a0a">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Host+Grotesk:wght@400..700&family=JetBrains+Mono:wght@400..500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <main style="padding-top:0">
+    <div class="wrap view">
+      <p class="label">Pairs, for the hosts</p>
+      <h1>Stress test</h1>
+      <p class="lead" id="intro"></p>
+      <p class="banner" id="warn" hidden></p>
+      <button class="btn btn--primary" id="start">Start the test</button>
+      <p class="note" id="now" role="status"></p>
+      <div id="report"></div>
+    </div>
+  </main>
+  <script type="module" src="stress.js"></script>
+</body>
+</html>

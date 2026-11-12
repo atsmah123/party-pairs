@@ -147,8 +147,9 @@ export function partnersOf(uid, pairs, guestIds) {
 
 /**
  * Choose who a guest hunts next: their closest match among guests they have
- * not paired with. Guests who are already being hunted by several people, or
- * who have met many, score a little lower so nobody gets mobbed.
+ * not paired with. Guests who have already met many people score a little
+ * lower, and near-ties are broken differently for each hunter, so the room
+ * does not all chase the same person.
  * Returns {guest, recycled} or null. `recycled` means every remaining guest
  * had been skipped, so the skipped list starts over.
  */
@@ -165,15 +166,12 @@ export function pickTarget(me, guests, pairs, opts = {}) {
     from = pool.filter((g) => g.id !== opts.avoid);
     if (!from.length) from = pool;
   }
-  const hunted = new Map();
-  for (const g of guests) if (g.target && g.id !== me.id) hunted.set(g.target, (hunted.get(g.target) || 0) + 1);
   let top = null;
   for (const g of from) {
     const jitter = (hash(me.id + "|" + g.id) % 1000) / 1000;
     const value = compare(me.interests, g.interests).score
-      - 0.12 * (hunted.get(g.id) || 0)
-      - 0.04 * partnersOf(g.id, pairs, ids).size
-      + 0.08 * jitter;
+      - 0.05 * partnersOf(g.id, pairs, ids).size
+      + 0.12 * jitter;
     if (!top || value > top.value) top = { guest: g, value };
   }
   return { guest: top.guest, recycled };
