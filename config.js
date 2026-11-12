@@ -1,0 +1,30 @@
+// Party settings. Change these to reuse the app for another night.
+
+// Firebase web config. This is not a secret: it only identifies the project.
+// Access is controlled by the rules in firestore.rules.
+export const firebaseConfig = {
+  apiKey: "AIzaSyAXywABAaEXc3AthO25demChxJaim5KmRk",
+  authDomain: "project-pairs-e3634.firebaseapp.com",
+  projectId: "project-pairs-e3634",
+  storageBucket: "project-pairs-e3634.firebasestorage.app",
+  messagingSenderId: "703114518121",
+  appId: "1:703114518121:web:0ae54b42ed992b7fc50cf8",
+};
+
+export const PARTY = {
+  title: "Atharva and Tabitha’s 24th",
+  // Clues stay locked until this moment, so early sign-ups all start together.
+  // Add ?preview=1 to the link to try the hunt before then.
+  huntOpens: "2026-11-14T21:00:00-05:00",
+  huntOpensLabel: "Saturday 14 Nov at 9:00pm",
+  cardGame: "Kings",
+};
+
+export const LIMITS = {
+  minInterests: 3,
+  maxInterests: 8,
+  nameMax: 24,
+  factMax: 140,
+  ruleMax: 140,
+  sharedForRule: 2,
+};

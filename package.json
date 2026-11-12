@@ -1,0 +1,6 @@
+{
+  "name": "party-pairs",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test tests/match.test.mjs" }
+}
