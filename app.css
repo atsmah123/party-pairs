@@ -70,6 +70,15 @@ h2 { font: var(--display-weight) 22px/1.2 var(--font-display); letter-spacing: -
 .brand { display: inline-flex; align-items: center; gap: var(--s-2); font: var(--display-weight) 20px/1 var(--font-display); letter-spacing: -0.02em; }
 .mark { width: 24px; height: 24px; fill: var(--p-bg); stroke: var(--p-ink); stroke-width: 1.75; }
 .top__code { display: inline-flex; align-items: baseline; gap: var(--s-2); }
+.top__right { display: inline-flex; align-items: center; gap: var(--s-1); margin-right: -10px; }
+.top__help {
+  width: 44px; height: 44px; display: grid; place-items: center; padding: 0; cursor: pointer;
+  background: none; border: 0; border-radius: 50%; color: var(--p-muted);
+  transition: color var(--m-out) var(--ease), transform var(--m-press) var(--ease);
+}
+.top__help:hover { color: var(--p-ink); }
+.top__help:active { transform: scale(.94); }
+@media (max-width: 359px) { .top__code .label { display: none; } }
 .top__code .mono { font-size: 18px; }
 
 #tabs {

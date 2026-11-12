@@ -47,6 +47,7 @@ const S = {
   draft: { code: "", rules: {} },
   huntMsg: "",
   sheet: null, // { other, role }
+  help: false,
   selected: null,
   leaving: false,
   revealed: false,
@@ -92,6 +93,7 @@ const ICONS = {
   rules: '<path d="M9 6.5h11M9 12h11M9 17.5h11"/><circle cx="4.5" cy="6.5" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="17.5" r="1"/>',
   me: '<rect x="5" y="3" width="14" height="18" rx="2.5"/><circle cx="12" cy="10" r="2.5"/><path d="M8.5 16.5c.8-1.6 2-2.4 3.5-2.4s2.7.8 3.5 2.4"/>',
 };
+ICONS.help = '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.6a2.5 2.5 0 1 1 3.7 2.2c-.8.5-1.3 1-1.3 1.9"/><path d="M12 16.9v.1"/>';
 const icon = (name) => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
 const MARK = '<svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 12h10"/><circle cx="5.5" cy="12" r="3.5"/><circle cx="18.5" cy="12" r="3.5"/></svg>';
 
@@ -128,7 +130,8 @@ function countdown() {
 function viewTop() {
   const m = S.phase === "app" ? me() : null;
   const right = m
-    ? `<span class="top__code"><span class="label">Your code</span><b class="mono">${esc(m.code)}</b></span>`
+    ? `<span class="top__right"><span class="top__code"><span class="label">Your code</span><b class="mono">${esc(m.code)}</b></span>
+        <button class="top__help" data-act="help" aria-label="How to play">${icon("help")}</button></span>`
     : `<span class="label">${esc(PARTY.title)}</span>`;
   return `<div class="wrap top__in"><span class="brand">${MARK}Pairs</span>${right}</div>`;
 }
@@ -162,8 +165,8 @@ const STEPS = [
   ["club", "Find them and swap a code", "Ask around, then type their 4-letter code. A wrong guess costs a sip."],
   ["diamond", "Meet the room", `Every pair joins the guest web. Share two interests and you add a house rule for ${PARTY.cardGame}.`],
 ];
-function howToPlay() {
-  return `<p class="label steps__head">How to play</p>
+function howToPlay(heading = true) {
+  return `${heading ? `<p class="label steps__head">How to play</p>` : ""}
     <ol class="steps">${STEPS.map(([suit, title, text], i) => `<li class="steps__row">
       <span class="steps__mark" aria-hidden="true"><b>${i + 1}</b>${suitSvg(suit)}</span>
       <div><p class="steps__title">${esc(title)}</p><p class="note">${esc(text)}</p></div></li>`).join("")}</ol>`;
@@ -359,7 +362,8 @@ function viewRules() {
   return `<p class="label">${esc(PARTY.cardGame)}</p>
     <h1>House rules</h1>
     <p class="lead">A pair that shares ${LIMITS.sharedForRule} or more interests adds one rule. Read them out before the next round.</p>
-    ${open}${list}`;
+    ${open}${list}
+    <button class="link" data-act="help">See how to play Pairs</button>`;
 }
 
 function viewMe() {
@@ -389,7 +393,25 @@ function viewMe() {
     <div class="leave">${leave}</div>`;
 }
 
+function viewHelp() {
+  return `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-h">
+    <div class="wrap sheet__in">
+      <p class="label">${esc(PARTY.title)}</p>
+      <h1 id="sheet-h" tabindex="-1">How to play Pairs</h1>
+      ${howToPlay(false)}
+      <p class="label steps__head">Good to know</p>
+      <ol class="steps">
+        <li class="steps__row"><p>Stuck on a clue? Get a nudge: first the face on their card, then the first letter of their name. Or skip to another guest.</p></li>
+        <li class="steps__row"><p>Your code is at the top of the screen. Give it to a guest who says they’ve found you.</p></li>
+        <li class="steps__row"><p>Your card starts as a 2 and climbs one rank for every pair you make, up to an ace.</p></li>
+      </ol>
+      <div class="btn-col"><button class="btn btn--primary" data-act="help-close">Go back to the game</button></div>
+    </div>
+  </div>`;
+}
+
 function viewSheet() {
+  if (S.phase === "app" && !S.sheet && S.help) return viewHelp();
   if (!S.sheet || S.phase !== "app") return "";
   const m = me(), g = guest(S.sheet.other);
   if (!m || !g) return "";
@@ -448,7 +470,7 @@ function render() {
     ? { id: active.id, start: active.selectionStart, end: active.selectionEnd } : null;
 
   document.body.dataset.phase = S.phase;
-  document.body.dataset.sheet = S.sheet ? "open" : "";
+  document.body.dataset.sheet = S.sheet || S.help ? "open" : "";
   patch($("#top"), viewTop());
   patch($("#tabs"), viewTabs());
 
@@ -497,7 +519,7 @@ function enter() {
     const card = $(".pcard--clue");
     if (card && !still) card.animate(rise, { duration: 420, easing: ease });
   }
-  const sheet = S.sheet ? S.sheet.other : null;
+  const sheet = S.sheet ? S.sheet.other : S.help && S.phase === "app" ? "help" : null;
   if (sheet !== shownSheet) {
     shownSheet = sheet;
     if (!sheet) return;
@@ -701,7 +723,9 @@ const actions = {
     render();
     window.scrollTo(0, 0);
   },
-  "sheet-close": () => { S.sheet = null; reconcile(); go("hunt"); },
+  "sheet-close": () => { S.sheet = null; S.help = false; reconcile(); go("hunt"); },
+  help: () => { S.help = true; render(); },
+  "help-close": () => { S.help = false; render(); },
   "sheet-rule"() {
     const id = M.pairId(S.uid, S.sheet.other);
     S.sheet = null;
@@ -820,6 +844,7 @@ document.addEventListener("input", (e) => {
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && S.sheet) actions["sheet-close"]();
+  else if (e.key === "Escape" && S.help) actions["help-close"]();
   // Enter in a rule box adds the rule; it is one line of text.
   if (e.key === "Enter" && !e.shiftKey && e.target.matches?.("textarea[data-draft^='rule:']")) {
     e.preventDefault();
