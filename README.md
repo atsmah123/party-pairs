@@ -26,11 +26,23 @@ Matching uses a tree of interests in `data.js`: the same tag scores 1, tags in t
 
 In the [Firebase console](https://console.firebase.google.com) for the project in `config.js`:
 
-1. **Authentication > Sign-in method:** turn on **Anonymous**.
-2. **Firestore Database:** create the database.
-3. **Firestore Database > Rules:** paste the contents of `firestore.rules` and publish.
+1. **Authentication > Sign-in method:** turn on **Google** (pick a support email) and **Anonymous**.
+2. **Authentication > Settings > Authorized domains:** add `atsmah123.github.io`. Google sign-in fails without it.
+3. **Firestore Database:** create the database.
+4. **Firestore Database > Rules:** paste the contents of `firestore.rules` and publish.
 
 The free Spark plan is enough. A 30-guest night should stay well under its daily limit of 50,000 reads.
+
+## Sign-in
+
+Guests see two buttons: **Continue with Google** and **Join without Google**.
+
+- With Google, the card belongs to the Google account, so the guest gets the same card in any browser or phone they sign in on.
+- Without Google, the card belongs to that one browser. The guest can attach it to Google later from the Me tab ("Save my card to Google").
+
+To make Google the only way in, set `allowGuests: false` in `config.js`. To go back to no sign-in screen at all, set `google: false`.
+
+Google sign-in does not work inside the browsers built into other apps (the app shows a note when it detects one). The Firebase console lists the Google email of each guest who signs in that way; the app itself stores no emails.
 
 ## Hosting
 
@@ -60,5 +72,5 @@ Run the logic tests with `npm test` (Node 20 or newer).
 
 ## Known limits
 
-- A guest is tied to the browser they joined in. Opening the link in a second browser makes a second card, so tell guests to stay in one.
+- A guest who joins without Google is tied to that browser. Opening the link in a second browser makes a second card, unless they saved the first one to Google.
 - Codes and cards are readable by any signed-in guest who goes looking in the browser's developer tools. That is fine for a party and not for anything that matters.

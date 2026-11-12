@@ -127,6 +127,8 @@ main { padding-top: var(--nav); padding-bottom: calc(var(--bar) + env(safe-area-
   text-decoration-color: var(--line-strong); transition: text-decoration-color var(--m-out) var(--ease);
 }
 .link:hover, .link:active { text-decoration-color: var(--p-ink); }
+.link--inline { display: inline; min-height: 0; padding-block: var(--s-2); }
+.view--welcome .btn-col { margin-top: 0; }
 
 /* ---------- fields ---------- */
 

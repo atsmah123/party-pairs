@@ -1,6 +1,6 @@
 // Pairs: screens, state and actions.
 
-import { PARTY, LIMITS } from "./config.js";
+import { PARTY, LIMITS, SIGN_IN } from "./config.js";
 import { CATEGORIES, EMOJI } from "./data.js";
 import * as M from "./match.js";
 import { createWeb } from "./web.js";
@@ -26,12 +26,19 @@ const PREVIEW = (DEMO && !params.has("locked")) || params.has("preview") || (!DE
 
 const TABS = ["hunt", "web", "rules", "me"];
 
+// Google refuses to sign people in inside the browsers built into other apps.
+const UA = navigator.userAgent;
+const IN_APP = /; wv\)|FBAN|FBAV|Instagram|Line\//.test(UA) || (/iPhone|iPad|iPod/.test(UA) && !/Safari\//.test(UA));
+
 // ---------- state ----------
 
 const S = {
-  phase: "loading", // loading | error | join | app
+  phase: "loading", // loading | error | welcome | join | app
   error: "",
   uid: null,
+  account: null, // { uid, google, name }
+  authMsg: "",
+  authBusy: false,
   guests: [], pairs: [], rules: [],
   got: { guests: false, pairs: false },
   pendingMe: null,
@@ -48,6 +55,7 @@ const S = {
 
 let backend = null;
 let web = null;
+let explain = () => "Something went wrong. Reload the page to try again.";
 
 function blankJoin() {
   return { step: 0, name: "", emoji: "", interests: [], fact: "", editing: false, err: {} };
@@ -144,6 +152,27 @@ function viewError() {
   </div>`;
 }
 
+const authNote = () => `<p class="field__error" role="status">${esc(S.authMsg)}</p>`;
+const canGoogle = () => Boolean(backend && backend.canGoogle);
+
+function viewWelcome() {
+  return `<div class="wrap view view--welcome">
+    <p class="label">${esc(PARTY.huntOpensLabel)}</p>
+    <h1>Pairs, the party game</h1>
+    <p class="lead">Make a card, get clues, and find the guests you have the most in common with.</p>
+    <div class="cardback" aria-hidden="true">${suitSvg("spade")}</div>
+    ${IN_APP ? `<p class="banner">Google sign-in is blocked inside app browsers like this one. Open this page in Safari or Chrome first.</p>` : ""}
+    <div class="btn-col">
+      <button class="btn btn--primary" data-act="google">Continue with Google</button>
+      ${SIGN_IN.allowGuests ? `<button class="btn btn--secondary" data-act="guest">Join without Google</button>` : ""}
+    </div>
+    ${authNote()}
+    <p class="note">${SIGN_IN.allowGuests
+      ? "With Google, your card follows you to any phone or browser. Without it, your card stays in this browser only."
+      : "Your card follows your Google account to any phone or browser."}</p>
+  </div>`;
+}
+
 const err = (key) => `<p class="field__error" id="${key}-err">${esc(S.join.err[key] || "")}</p>`;
 
 function viewJoin() {
@@ -163,7 +192,9 @@ function viewJoin() {
         <legend>The face on your card</legend>
         <div class="faces">${EMOJI.map((e) => `<button type="button" class="face" data-act="emoji" data-emoji="${e}" aria-pressed="${j.emoji === e}">${e}</button>`).join("")}</div>
         ${err("emoji")}
-      </fieldset>`;
+      </fieldset>
+      ${canGoogle() && !j.editing && !S.account?.google
+        ? `<p class="note">Made a card in another browser? <button type="button" class="link link--inline" data-act="google">Sign in with Google</button></p>${authNote()}` : ""}`;
   } else if (j.step === 1) {
     body = `${stepLabel}
       <h1>Pick your interests</h1>
@@ -327,7 +358,8 @@ function viewMe() {
   const leave = S.leaving
     ? `<p>This deletes your card and your pairs. You can join again with a new one.</p>
        <div class="btn-row btn-row--split"><button class="btn btn--secondary" data-act="leave-yes">Delete my card</button><button class="btn btn--secondary" data-act="leave-no">Keep my card</button></div>`
-    : `<button class="link" data-act="leave">Leave the party</button>`;
+    : `<button class="link" data-act="leave">Leave the party</button>
+       ${S.account?.google ? `<button class="link" data-act="signout">Sign out of Google</button>` : ""}`;
   return `<p class="label">Your card</p>
     <h1>${esc(m.name)}</h1>
     ${cardHtml(m)}
@@ -335,6 +367,8 @@ function viewMe() {
     <div class="chips chips--static">${m.interests.filter((t) => M.TAGS.has(t)).map((t) => `<span class="chip chip--static">${esc(M.TAGS.get(t).label)}</span>`).join("")}</div>
     <p class="quote">“${esc(m.fact)}”</p>
     <button class="btn btn--secondary" data-act="edit">Edit my card</button>
+    ${canGoogle() && !S.account?.google ? `<button class="btn btn--secondary" data-act="google">Save my card to Google</button>
+      <p class="note">Your card is tied to this browser. Saving it to Google lets you open it on any phone or browser.</p>${authNote()}` : ""}
     <h2>Guests you have met</h2>
     ${metList}
     <div class="leave">${leave}</div>`;
@@ -406,6 +440,7 @@ function render() {
   let changed = false;
   if (S.phase === "loading") changed = patch(main, viewLoading());
   else if (S.phase === "error") changed = patch(main, viewError());
+  else if (S.phase === "welcome") changed = patch(main, viewWelcome());
   else if (S.phase === "join") changed = patch(main, viewJoin());
   else if (!me()) changed = patch(main, viewLoading());
   else if (S.tab === "web") {
@@ -538,6 +573,7 @@ function onGuests(list, meta) {
     if (S.phase === "loading" || (S.phase === "join" && !S.join.editing)) S.phase = "app";
   } else if (S.phase === "loading" && !meta.fromCache) {
     S.phase = "join";
+    if (!S.join.name && S.account?.name) S.join.name = S.account.name.slice(0, LIMITS.nameMax);
   } else if (S.phase === "app" && !S.pendingMe && !meta.fromCache) {
     S.phase = "join";
     S.join = blankJoin();
@@ -551,6 +587,49 @@ function onGuests(list, meta) {
 
 const actions = {
   reload: () => location.reload(),
+  async google() {
+    if (S.authBusy) return;
+    S.authBusy = true; S.authMsg = "";
+    render();
+    try {
+      const had = S.uid;
+      const result = await backend.signInGoogle();
+      if (result && result.clash) {
+        // That Google account already owns a card under another sign-in.
+        if (S.guests.some((g) => g.id === S.uid)) {
+          S.authMsg = "That Google account already has a card. To use it, leave this card first, then sign in with Google.";
+        } else {
+          await result.switchTo();
+          return location.reload();
+        }
+      } else if (result) {
+        if (!had) begin(result);
+        else if (result.uid !== had) return location.reload();
+        else S.account = result;
+      }
+    } catch (e) {
+      console.error(e);
+      S.authMsg = explain(e, "google");
+    }
+    S.authBusy = false;
+    render();
+  },
+  async guest() {
+    if (S.authBusy) return;
+    S.authBusy = true; S.authMsg = "";
+    try {
+      begin(await backend.signInGuest());
+    } catch (e) {
+      console.error(e);
+      S.authMsg = explain(e, "guest");
+    }
+    S.authBusy = false;
+    render();
+  },
+  async signout() {
+    await send(backend.signOut());
+    location.reload();
+  },
   tab: (el) => go(el.dataset.tab),
   emoji: (el) => { S.join.emoji = el.dataset.emoji; delete S.join.err.emoji; render(); },
   interest(el) {
@@ -759,8 +838,22 @@ async function start() {
     console.error(e);
     return stop(mod.explain ? mod.explain(e) : offline);
   }
-  S.uid = backend.uid;
+  if (mod.explain) explain = mod.explain;
   if (DEMO) window.__pairsDemo = backend;
+
+  const account = backend.account();
+  if (account) begin(account);
+  else { S.phase = "welcome"; render(); }
+}
+
+/** A guest is signed in: start listening to the party. */
+function begin(account) {
+  const offline = "Can’t reach the party server. Check your connection and reload.";
+  S.account = account;
+  S.uid = account.uid;
+  S.phase = "loading";
+  S.authMsg = "";
+  render();
 
   backend.watch({
     onGuests,

@@ -68,8 +68,9 @@ export async function connect() {
   }, 9000);
 
   const api = {
-    uid: ME,
     demo: true,
+    canGoogle: false,
+    account: () => ({ uid: ME, google: false, name: "" }),
     watch({ onGuests, onPairs, onRules }) {
       subs.guests = onGuests; subs.pairs = onPairs; subs.rules = onRules;
       Promise.resolve().then(emit);

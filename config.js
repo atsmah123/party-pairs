@@ -11,6 +11,13 @@ export const firebaseConfig = {
   appId: "1:703114518121:web:0ae54b42ed992b7fc50cf8",
 };
 
+// How guests sign in.
+// google: true      a "Continue with Google" button, so a card follows the
+//                   guest to any phone or browser signed in to that account.
+// allowGuests: true also offers "Join without Google". Those cards live in one
+//                   browser only. Set it to false to make Google the only way in.
+export const SIGN_IN = { google: true, allowGuests: true };
+
 export const PARTY = {
   title: "Atharva and Tabitha’s 24th",
   // Clues stay locked until this moment, so early sign-ups all start together.
