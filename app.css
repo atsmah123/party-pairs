@@ -223,6 +223,13 @@ input.code { height: 64px; font-size: 28px; text-align: center; letter-spacing: 
 .who__face { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: var(--p-surface); font-size: 22px; line-height: 1; }
 .who__name { font: var(--display-weight) 18px/26px var(--font-display); }
 .quote, .who__name, .rows__row p { overflow-wrap: anywhere; }
+.steps { border-top: 1px solid var(--line); }
+.steps__head { margin-top: var(--s-2); margin-bottom: calc(var(--s-2) * -1); }
+.steps__row { display: flex; align-items: flex-start; gap: var(--s-4); padding: var(--s-3) 0; border-bottom: 1px solid var(--line); }
+.steps__mark { flex: none; width: 24px; display: flex; flex-direction: column; align-items: center; gap: 2px; font: 500 18px/24px var(--font-display); }
+.steps__mark .suit { width: 12px; height: 12px; fill: var(--p-muted); }
+.steps__mark .suit--heart, .steps__mark .suit--diamond { fill: var(--accent-lit); }
+.steps__title { font-weight: 500; }
 .leave { margin-top: var(--s-5); display: flex; flex-direction: column; gap: var(--s-3); }
 
 /* ---------- the guest web ---------- */

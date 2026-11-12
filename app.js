@@ -155,12 +155,26 @@ function viewError() {
 const authNote = () => `<p class="field__error" role="status">${esc(S.authMsg)}</p>`;
 const canGoogle = () => Boolean(backend && backend.canGoogle);
 
+// The rules in four lines, each marked like the corner of a playing card.
+const STEPS = [
+  ["spade", "Make your card", "A face, a few interests, one secret fact."],
+  ["heart", "Get a clue", "It points to the guest most like you and shows their secret fact."],
+  ["club", "Find them and swap a code", "Ask around, then type their 4-letter code. A wrong guess costs a sip."],
+  ["diamond", "Meet the room", `Every pair joins the guest web. Share two interests and you add a house rule for ${PARTY.cardGame}.`],
+];
+function howToPlay() {
+  return `<p class="label steps__head">How to play</p>
+    <ol class="steps">${STEPS.map(([suit, title, text], i) => `<li class="steps__row">
+      <span class="steps__mark" aria-hidden="true"><b>${i + 1}</b>${suitSvg(suit)}</span>
+      <div><p class="steps__title">${esc(title)}</p><p class="note">${esc(text)}</p></div></li>`).join("")}</ol>`;
+}
+
 function viewWelcome() {
   return `<div class="wrap view view--welcome">
     <p class="label">${esc(PARTY.huntOpensLabel)}</p>
     <h1>Pairs, the party game</h1>
-    <p class="lead">Make a card, get clues, and find the guests you have the most in common with.</p>
-    <div class="cardback" aria-hidden="true">${suitSvg("spade")}</div>
+    <p class="lead">Find the guests you have the most in common with.</p>
+    ${howToPlay()}
     ${IN_APP ? `<p class="banner">Google sign-in is blocked inside app browsers like this one. Open this page in Safari or Chrome first.</p>` : ""}
     <div class="btn-col">
       <button class="btn btn--primary" data-act="google">Continue with Google</button>
@@ -236,7 +250,8 @@ function viewHunt() {
       <h1>Clues open ${esc(PARTY.huntOpensLabel)}</h1>
       <p class="lead">${countdown()} to go. ${plural(S.guests.length, "guest has", "guests have")} joined so far. Your first clue is dealt from everyone who is in by then.</p>
       ${cardBack}
-      <button class="btn btn--secondary" data-act="tab" data-tab="web">See who has joined</button>`;
+      <button class="btn btn--secondary" data-act="tab" data-tab="web">See who has joined</button>
+      ${howToPlay()}`;
   }
   const preview = PREVIEW && !DEMO && Date.now() < Date.parse(PARTY.huntOpens)
     ? `<p class="banner">Preview. The hunt is unlocked on this phone only until ${esc(PARTY.huntOpensLabel)}.</p>` : "";
