@@ -207,6 +207,32 @@ function howToPlay(heading = true) {
       <div><p class="steps__title">${esc(title)}</p><p class="note">${esc(text)}</p></div></li>`).join("")}</ol>`;
 }
 
+// What the end of the night looks like, so guests know what they are playing for.
+const AWARD_GUIDE = [
+  ["Most connected", "Meet the most guests."],
+  ["The detective", "Find the most guests from their clues."],
+  ["Most wanted", "Be found by the most guests."],
+  ["Closest match and unlikeliest pair", "Be half of the most alike pair in the room, or the least."],
+  ["The bridge", "Meet guests who have not met each other."],
+  ["Tightest circle", "Be in the biggest group where everyone met everyone."],
+  ["Sharp eyes", "Find the most guests without using a nudge."],
+  ["Thirstiest", "Make the most wrong guesses."],
+];
+function awardsTeaser() {
+  const m = me();
+  const sample = [
+    [1, `<span class="who__face who__face--blank">?</span>`, "Someone here", 9],
+    [2, `<span class="who__face">${m ? face(m) : "?"}</span>`, "You, maybe", 8],
+    [3, `<span class="who__face who__face--blank">?</span>`, "Someone else", 7],
+  ];
+  return `<p class="label steps__head">Revealed when the hosts end the game</p>
+    <ol class="rows">${AWARD_GUIDE.map(([title, how]) => `<li class="rows__row"><p class="steps__title">${esc(title)}</p><p class="note">${esc(how)}</p></li>`).join("")}</ol>
+    <p class="label steps__head">Plus a leaderboard, like this example</p>
+    <ol class="rows">${sample.map(([place, who, name, count]) => `<li class="rows__row board${place === 2 ? " board--me" : ""}">
+      <span class="board__place">${place}</span>${who}<p class="who__name">${name}</p><span class="board__count">${count} guests</span></li>`).join("")}</ol>
+    <p class="note">More awards turn up on the night, and everyone gets a private recap of their own evening.</p>`;
+}
+
 function viewWelcome() {
   return `<div class="wrap view view--welcome">
     <p class="label">${esc(PARTY.partyLabel)}</p>
@@ -297,7 +323,8 @@ function viewHunt() {
       <p class="lead">The hosts start the hunt once the room fills up, by ${esc(PARTY.huntOpensLabel)} at the latest. ${plural(S.guests.length, "guest has", "guests have")} joined so far.</p>
       ${cardBack}
       <button class="btn btn--secondary" data-act="tab" data-tab="web">See who has joined</button>
-      ${howToPlay()}`;
+      ${howToPlay()}
+      ${awardsTeaser()}`;
   }
   const preview = PREVIEW && !DEMO && Date.now() < Date.parse(PARTY.huntOpens)
     ? `<p class="banner">Preview. The hunt is unlocked on this phone only until the game starts.</p>` : "";
@@ -505,8 +532,8 @@ function viewHelp() {
         <li class="steps__row"><p>Stuck on a clue? Get a nudge: first the face on their card, then the first letter of their name. Or skip to another guest.</p></li>
         <li class="steps__row"><p>Your code is at the top of the screen. Give it to a guest who says they’ve found you.</p></li>
         <li class="steps__row"><p>Your card starts as a 2 and climbs one rank for every pair you make, up to an ace.</p></li>
-        <li class="steps__row"><p>When the hosts call time, the app hands out awards for the night.</p></li>
       </ol>
+      ${awardsTeaser()}
       <div class="btn-col"><button class="btn btn--primary" data-act="help-close">Go back to the game</button></div>
     </div>
   </div>`;
