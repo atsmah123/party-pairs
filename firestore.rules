@@ -46,6 +46,19 @@ service cloud.firestore {
       allow delete: if signedIn() && resource.data.by == request.auth.uid;
     }
 
+    // Each guest's own tally of wrong guesses, nudges and skips, for the awards.
+    match /stats/{uid} {
+      allow read: if signedIn();
+      allow write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // One small document that says whether the awards are revealed. The app
+    // only shows the switch on a phone opened with the host link, but any
+    // signed-in guest who knows their way around a browser could flip it.
+    match /party/{docId} {
+      allow read, write: if signedIn();
+    }
+
     // One house rule per pair that earned it, written by either of the two.
     match /rules/{pairId} {
       allow read: if signedIn();

@@ -25,6 +25,10 @@ export const PARTY = {
   huntOpens: "2026-11-14T21:00:00-05:00",
   huntOpensLabel: "Saturday 14 Nov at 9:00pm",
   cardGame: "Kings",
+  // The awards appear when a host taps "Reveal the awards" (open the site once
+  // with ?host=1 to get that button). To reveal them at a set time as well,
+  // put a time here, for example "2026-11-15T00:30:00-05:00".
+  awardsAt: null,
 };
 
 export const LIMITS = {

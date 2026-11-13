@@ -11,6 +11,7 @@ It is a static site (GitHub Pages) with Firebase for sign-in and shared data. Th
 | `https://atsmah123.github.io/party-pairs/` | The party. Send this one to guests. |
 | `.../party-pairs/?preview=1` | Unlocks the hunt on your phone before the party starts, so you can test with a friend. |
 | `.../party-pairs/?demo=1` | Runs the whole game on one phone with twelve made-up guests. Touches nothing in Firebase. |
+| `.../party-pairs/?host=1` | Turns on the host controls on your phone (once is enough). See "Awards". |
 | `.../party-pairs/stress.html` | Stress test for the hosts. See below. |
 
 ## How the game works
@@ -22,6 +23,17 @@ It is a static site (GitHub Pages) with Firebase for sign-in and shared data. Th
 5. **Rank.** A guest's card starts as a 2 and climbs one rank per pair, up to an ace.
 
 Matching uses a tree of interests in `data.js`: the same tag scores 1, tags in the same group score 0.7 (rock and metal), tags in the same category score 0.3.
+
+## Awards
+
+Nothing about the awards shows during the party. When a host taps **Reveal the awards to everyone** (Me tab, on a phone that has opened the site with `?host=1`), every phone gets an "The awards are in" screen and a fifth tab.
+
+- **Your night:** each guest's own recap: how many they met, their place, their closest and unlikeliest match.
+- **Awards:** most connected, the detective, most wanted, closest match, unlikeliest pair, first and last pair of the night, the bridge, tightest circle, furthest apart, opposites attract, birds of a feather, one of a kind, the room's obsession, thirstiest, sharp eyes, hard to please. An award only appears when the night produced enough to decide it.
+- **Leaderboard:** the top ten by guests met, plus the viewer's own place.
+- **The room in numbers:** pairs made, share of all possible pairs, busiest 15 minutes, sips taken.
+
+Hosts can preview the awards on their own phone first, and hide them again. To also reveal them at a fixed time, set `awardsAt` in `config.js`. Everything is worked out on the phone by `awards.js` from data the party already has, plus each guest's own count of wrong guesses, nudges and skips.
 
 ## One-time Firebase setup
 
@@ -65,7 +77,7 @@ Repository **Settings > Pages > Deploy from a branch > `main` / root**. The site
 
 - Party name, start time and the card game: `config.js`.
 - Interests, clue wording and conversation prompts: `data.js`.
-- To clear the party and start over, delete the `guests`, `pairs` and `rules` collections in the Firebase console.
+- To clear the party and start over, delete the `guests`, `pairs`, `rules`, `stats` and `party` collections in the Firebase console.
 - To remove one guest or one house rule, delete that document in the console.
 
 ## Files
@@ -75,6 +87,7 @@ Repository **Settings > Pages > Deploy from a branch > `main` / root**. The site
 | `index.html`, `app.css` | The page and its styles |
 | `app.js` | Screens, state and actions |
 | `match.js` | Matching, clues, codes and ranks (pure functions) |
+| `awards.js` | The end-of-night awards (pure functions) |
 | `web.js` | The guest web |
 | `data.js` | Interests, prompts and faces |
 | `backend-firebase.js` | Firebase sign-in and Firestore |

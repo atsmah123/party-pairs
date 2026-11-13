@@ -4,6 +4,7 @@ import { PARTY, LIMITS, SIGN_IN } from "./config.js";
 import { CATEGORIES, EMOJI } from "./data.js";
 import * as M from "./match.js";
 import { createWeb } from "./web.js";
+import { buildAwards } from "./awards.js";
 
 // ---------- small helpers ----------
 
@@ -25,6 +26,9 @@ if (params.has("preview")) writeStore("sessionStorage", "pairs-preview", "1");
 const PREVIEW = (DEMO && !params.has("locked")) || params.has("preview") || (!DEMO && readStore("sessionStorage", "pairs-preview") === "1");
 
 const TABS = ["hunt", "web", "rules", "me"];
+// Opening the site once with ?host=1 turns on the host controls on this phone.
+if (params.has("host")) writeStore("localStorage", "pairs-host", "1");
+const HOST = DEMO || params.has("host") || readStore("localStorage", "pairs-host") === "1";
 
 // Google refuses to sign people in inside the browsers built into other apps.
 const UA = navigator.userAgent;
@@ -42,7 +46,12 @@ const S = {
   guests: [], pairs: [], rules: [],
   got: { guests: false, pairs: false },
   pendingMe: null,
-  tab: TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : "hunt",
+  tab: [...TABS, "awards"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "hunt",
+  party: {}, // { awards: true } once the hosts reveal the awards
+  awardsPreview: false,
+  announce: false,
+  stats: {},
+  statsAt: 0,
   join: blankJoin(),
   draft: { code: "", rules: {} },
   huntMsg: "",
@@ -68,6 +77,11 @@ const livePairs = () => { const ids = guestIds(); return S.pairs.filter((p) => i
 const metSet = (uid = S.uid) => M.partnersOf(uid, S.pairs, guestIds());
 const guest = (id) => S.guests.find((g) => g.id === id);
 const huntOpen = () => PREVIEW || Date.now() >= Date.parse(PARTY.huntOpens);
+const awardsRevealed = () => Boolean(S.party.awards) || (PARTY.awardsAt ? Date.now() >= Date.parse(PARTY.awardsAt) : false);
+const awardsOn = () => awardsRevealed() || S.awardsPreview;
+const tabs = () => (awardsOn() ? [...TABS, "awards"] : TABS);
+// Wrong guesses, nudges and skips are tallied for the awards. A failed tally never bothers the guest.
+const tally = (key) => { try { Promise.resolve(backend.bumpStat && backend.bumpStat(key)).catch(() => {}); } catch { /* not counted */ } };
 
 // Where a guest is in the hunt is kept on their phone, not in the database:
 // nobody else needs it, and every database change is re-read by every phone.
@@ -111,6 +125,7 @@ const ICONS = {
   rules: '<path d="M9 6.5h11M9 12h11M9 17.5h11"/><circle cx="4.5" cy="6.5" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="17.5" r="1"/>',
   me: '<rect x="5" y="3" width="14" height="18" rx="2.5"/><circle cx="12" cy="10" r="2.5"/><path d="M8.5 16.5c.8-1.6 2-2.4 3.5-2.4s2.7.8 3.5 2.4"/>',
 };
+ICONS.awards = '<path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.8-5.2-2.8-5.2 2.8 1-5.8-4.3-4.1 5.9-.8z"/>';
 ICONS.help = '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.6a2.5 2.5 0 1 1 3.7 2.2c-.8.5-1.3 1-1.3 1.9"/><path d="M12 16.9v.1"/>';
 const icon = (name) => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
 const MARK = '<svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 12h10"/><circle cx="5.5" cy="12" r="3.5"/><circle cx="18.5" cy="12" r="3.5"/></svg>';
@@ -156,8 +171,8 @@ function viewTop() {
 
 function viewTabs() {
   if (S.phase !== "app") return "";
-  const names = { hunt: "Hunt", web: "Web", rules: "Rules", me: "Me" };
-  return `<div class="wrap tabs__in">${TABS.map((t) =>
+  const names = { hunt: "Hunt", web: "Web", rules: "Rules", me: "Me", awards: "Awards" };
+  return `<div class="wrap tabs__in">${tabs().map((t) =>
     `<button class="tab" data-act="tab" data-tab="${t}"${S.tab === t ? ' aria-current="page"' : ""}>${icon(t)}<span>${names[t]}</span></button>`).join("")}</div>`;
 }
 
@@ -410,6 +425,12 @@ function viewMe() {
       <p class="note">Your card is tied to this browser. Saving it to Google lets you open it on any phone or browser.</p>${authNote()}` : ""}
     <h2>Guests you have met</h2>
     ${metList}
+    ${HOST ? `<h2>Host controls</h2>
+      <p class="note">Only phones opened with the host link see this. ${awardsRevealed() ? "Every guest can see the awards now." : "Guests can’t see the awards until you reveal them."}</p>
+      <div class="btn-col btn-col--tight">
+        <button class="btn btn--secondary" data-act="awards-toggle">${S.party.awards ? "Hide the awards again" : "Reveal the awards to everyone"}</button>
+        ${awardsRevealed() ? "" : `<button class="btn btn--secondary" data-act="awards-preview">Preview the awards on this phone</button>`}
+      </div>` : ""}
     <div class="leave">${leave}</div>`;
 }
 
@@ -424,13 +445,68 @@ function viewHelp() {
         <li class="steps__row"><p>Stuck on a clue? Get a nudge: first the face on their card, then the first letter of their name. Or skip to another guest.</p></li>
         <li class="steps__row"><p>Your code is at the top of the screen. Give it to a guest who says they’ve found you.</p></li>
         <li class="steps__row"><p>Your card starts as a 2 and climbs one rank for every pair you make, up to an ace.</p></li>
+        <li class="steps__row"><p>When the hosts call time, the app hands out awards for the night.</p></li>
       </ol>
       <div class="btn-col"><button class="btn btn--primary" data-act="help-close">Go back to the game</button></div>
     </div>
   </div>`;
 }
 
+function viewAnnounce() {
+  return `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-h">
+    <div class="wrap sheet__in">
+      <div class="cardback" aria-hidden="true">${suitSvg("diamond")}</div>
+      <p class="label">${esc(PARTY.title)}</p>
+      <h1 id="sheet-h" tabindex="-1">The awards are in</h1>
+      <p class="lead">See who met the most guests, which pair nobody saw coming, and how your own night went.</p>
+      <div class="btn-col"><button class="btn btn--primary" data-act="awards-open">See the awards</button></div>
+    </div>
+  </div>`;
+}
+
+function viewAwards() {
+  const a = buildAwards({ guests: S.guests, pairs: S.pairs, stats: S.stats, meId: S.uid });
+  const faces = (ids) => (ids.length ? `<span class="faces-row">${ids.slice(0, 6).map((id) => `<span class="who__face">${face(guest(id))}</span>`).join("")}</span>` : "");
+  const names = (ids) => joinAnd(ids.map((id) => guest(id).name));
+  const mine = a.mine ? `<article class="pcard pcard--clue">
+      <p class="label">Your night</p>
+      <p class="pcard__lead">${esc(a.mine.lead)}</p>
+      ${a.mine.rows.map(([k, v]) => `<p class="pcard__row"><span class="label">${esc(k)}</span><span>${esc(v)}</span></p>`).join("")}
+    </article>` : "";
+  const awards = a.awards.length
+    ? `<ol class="rows">${a.awards.map((w) => `<li class="rows__row">
+        <p class="label">${esc(w.title)}</p>
+        ${w.who.length ? `<div class="who">${faces(w.who)}<p class="who__name">${esc(names(w.who))}</p></div>` : ""}
+        <p${w.who.length ? ' class="note"' : ""}>${esc(w.detail)}</p></li>`).join("")}</ol>`
+    : `<p class="note">No pairs yet, so no awards yet.</p>`;
+  const shown = a.board.slice(0, 10);
+  const own = a.board.find((b) => b.id === S.uid);
+  if (own && !shown.includes(own)) shown.push(own);
+  const board = shown.length ? `<h2>Leaderboard</h2>
+    <ol class="rows">${shown.map((b) => `<li class="rows__row board${b.id === S.uid ? " board--me" : ""}">
+      <span class="board__place">${b.place}</span><span class="who__face">${face(guest(b.id))}</span>
+      <p class="who__name">${esc(guest(b.id).name)}${b.id === S.uid ? " (you)" : ""}</p>
+      <span class="board__count">${plural(b.count, "guest", "guests")}</span></li>`).join("")}</ol>` : "";
+  return `${awardsRevealed() ? "" : `<p class="banner">Preview. Guests can’t see this until you reveal the awards from the Me tab.</p>`}
+    <p class="label">${esc(PARTY.title)}</p>
+    <h1>The awards</h1>
+    <p class="lead">${plural(a.pairs, "pair", "pairs")} between ${plural(a.guests, "guest", "guests")}. Here is how the night went.</p>
+    ${mine}
+    <h2>Awards</h2>
+    ${awards}
+    ${board}
+    <h2>The room in numbers</h2>
+    <ol class="rows">${a.numbers.map(([k, v]) => `<li class="rows__row"><p class="label">${esc(k)}</p><p>${esc(v)}</p></li>`).join("")}</ol>`;
+}
+
+function loadStats() {
+  if (!backend.readStats || Date.now() - S.statsAt < 60000) return;
+  S.statsAt = Date.now();
+  Promise.resolve(backend.readStats()).then((stats) => { S.stats = stats || {}; render(); }).catch(() => {});
+}
+
 function viewSheet() {
+  if (S.phase === "app" && !S.sheet && S.announce && awardsRevealed()) return viewAnnounce();
   if (S.phase === "app" && !S.sheet && S.help) return viewHelp();
   if (!S.sheet || S.phase !== "app") return "";
   const m = me(), g = guest(S.sheet.other);
@@ -490,7 +566,9 @@ function render() {
     ? { id: active.id, start: active.selectionStart, end: active.selectionEnd } : null;
 
   document.body.dataset.phase = S.phase;
-  document.body.dataset.sheet = S.sheet || S.help ? "open" : "";
+  if (S.tab === "awards" && !awardsOn()) S.tab = "hunt";
+  const announcing = S.announce && awardsRevealed();
+  document.body.dataset.sheet = S.sheet || S.help || announcing ? "open" : "";
   patch($("#top"), viewTop());
   patch($("#tabs"), viewTabs());
 
@@ -507,7 +585,8 @@ function render() {
     patch($("#web-panel"), viewWebPanel());
     web.update({ guests: S.guests, pairs: S.pairs, meId: S.uid, selected: S.selected });
   } else {
-    const body = S.tab === "hunt" ? viewHunt() : S.tab === "rules" ? viewRules() : viewMe();
+    if (S.tab === "awards") loadStats();
+    const body = S.tab === "hunt" ? viewHunt() : S.tab === "rules" ? viewRules() : S.tab === "awards" ? viewAwards() : viewMe();
     changed = patch(main, `<div class="wrap view view--${S.tab}">${demoNote()}${body}</div>`);
   }
   if ((S.tab !== "web" || S.phase !== "app") && web) { web.destroy(); web = null; }
@@ -539,7 +618,7 @@ function enter() {
     const card = $(".pcard--clue");
     if (card && !still) card.animate(rise, { duration: 420, easing: ease });
   }
-  const sheet = S.sheet ? S.sheet.other : S.help && S.phase === "app" ? "help" : null;
+  const sheet = S.phase !== "app" ? null : S.sheet ? S.sheet.other : S.announce && awardsRevealed() ? "awards" : S.help ? "help" : null;
   if (sheet !== shownSheet) {
     shownSheet = sheet;
     if (!sheet) return;
@@ -552,7 +631,7 @@ function enter() {
 }
 
 function go(tab) {
-  if (!TABS.includes(tab)) return;
+  if (!tabs().includes(tab)) return;
   S.tab = tab;
   S.leaving = false;
   history.replaceState(null, "", "#" + tab);
@@ -720,10 +799,12 @@ const actions = {
     render();
   },
   nudge() {
+    tally("nudges");
     setHunt({ hints: Math.min(2, hunt.hints + 1) });
     render();
   },
   skip() {
+    tally("skips");
     const m = me();
     const skipped = [...new Set([...hunt.skipped, hunt.target])];
     const pick = M.pickTarget({ ...m, skipped }, S.guests, S.pairs, { avoid: hunt.target });
@@ -749,6 +830,21 @@ const actions = {
   "sheet-close": () => { S.sheet = null; S.help = false; reconcile(); go("hunt"); },
   help: () => { S.help = true; render(); },
   "help-close": () => { S.help = false; render(); },
+  "awards-open"() {
+    S.announce = false;
+    writeStore("localStorage", "pairs-awards-seen:" + S.uid, "1");
+    go("awards");
+  },
+  "awards-preview"() {
+    S.awardsPreview = true;
+    go("awards");
+  },
+  "awards-toggle"() {
+    const on = !S.party.awards;
+    // The host who reveals the awards does not need to be told about it.
+    if (on) writeStore("localStorage", "pairs-awards-seen:" + S.uid, "1");
+    Promise.resolve(backend.setAwards(on)).catch((e) => { console.error(e); fail(explain(e)); });
+  },
   "sheet-rule"() {
     const id = M.pairId(S.uid, S.sheet.other);
     S.sheet = null;
@@ -789,7 +885,7 @@ const forms = {
     const g = S.guests.find((x) => x.code === code);
     if (!g) return say("No guest has that code. Check the letters.");
     if (metSet().has(g.id)) return say(`You have already paired with ${g.name}.`);
-    if (g.id !== target.id) return say("Not your pair. Take a sip and keep asking.");
+    if (g.id !== target.id) { tally("wrong"); return say("Not your pair. Take a sip and keep asking."); }
 
     const id = M.pairId(S.uid, g.id);
     const [a, b] = S.uid < g.id ? [S.uid, g.id] : [g.id, S.uid];
@@ -882,7 +978,7 @@ document.addEventListener("keydown", (e) => {
 
 window.addEventListener("hashchange", () => {
   const tab = location.hash.slice(1);
-  if (TABS.includes(tab) && tab !== S.tab) { S.tab = tab; render(); }
+  if (tabs().includes(tab) && tab !== S.tab) { S.tab = tab; render(); }
 });
 document.addEventListener("visibilitychange", () => { if (!document.hidden) render(); });
 setInterval(() => { if (S.phase === "app" && S.tab === "hunt" && !document.hidden) render(); }, 30000);
@@ -923,6 +1019,17 @@ function begin(account) {
   S.phase = "loading";
   S.authMsg = "";
   render();
+
+  // The hosts' switch for the awards. Everyone gets told once when it flips on.
+  if (backend.watchParty) {
+    backend.watchParty((state) => {
+      S.party = state || {};
+      const key = "pairs-awards-seen:" + S.uid;
+      if (!S.party.awards) writeStore("localStorage", key, "");
+      else if (readStore("localStorage", key) !== "1" && S.tab !== "awards") S.announce = true;
+      render();
+    });
+  }
 
   backend.watch({
     onGuests,

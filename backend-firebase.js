@@ -7,7 +7,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {
   initializeFirestore, getFirestore, persistentLocalCache, persistentMultipleTabManager,
-  collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, serverTimestamp,
+  collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, getDocs, increment, serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { firebaseConfig, SIGN_IN } from "./config.js";
 
@@ -123,6 +123,23 @@ export async function connect({ name, cache = true } = {}) {
     watch({ onGuests, onPairs, onRules, onError }) {
       const stops = [watchAll("guests", onGuests, onError), watchAll("pairs", onPairs, onError), watchAll("rules", onRules, onError)];
       return () => stops.forEach((stop) => stop());
+    },
+    /** Add one to this guest's own tally ("wrong", "nudges" or "skips"). Nobody listens to these; they are read once, for the awards. */
+    bumpStat(key) {
+      return setDoc(doc(db, "stats", uid()), { [key]: increment(1) }, { merge: true });
+    },
+    async readStats() {
+      const snap = await getDocs(collection(db, "stats"));
+      const out = {};
+      snap.forEach((d) => { out[d.id] = d.data(); });
+      return out;
+    },
+    /** One small document says whether the hosts have revealed the awards. */
+    watchParty(cb) {
+      return onSnapshot(doc(db, "party", "state"), (snap) => cb(snap.exists() ? snap.data() : {}), () => {});
+    },
+    setAwards(on) {
+      return setDoc(doc(db, "party", "state"), { awards: on, at: serverTimestamp() });
     },
     /** Stress test only: delete this sign-in altogether. */
     removeAccount() {

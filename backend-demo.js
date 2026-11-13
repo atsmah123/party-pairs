@@ -29,7 +29,7 @@ function load() {
     const saved = JSON.parse(localStorage.getItem(KEY));
     if (saved && Array.isArray(saved.pairs)) return saved;
   } catch { /* no saved demo */ }
-  return { me: null, pairs: [], rules: [] };
+  return { me: null, pairs: [], rules: [], stats: {}, awards: false };
 }
 
 export async function connect() {
@@ -97,6 +97,30 @@ export async function connect() {
         state.rules = state.rules.filter((r) => r.id !== id);
         state.rules.push({ ...rule, id, at: Date.now() });
       });
+    },
+    bumpStat(key) {
+      state.stats = state.stats || {};
+      const mine = (state.stats[ME] = state.stats[ME] || {});
+      mine[key] = (mine[key] || 0) + 1;
+      save();
+      return Promise.resolve();
+    },
+    async readStats() {
+      // The made-up guests get made-up tallies.
+      const out = { ...(state.stats || {}) };
+      BOTS.forEach((b, i) => { out[b.id] = { wrong: (i * 5) % 4, nudges: i % 3, skips: (i * 3) % 5 === 0 ? 3 : 0 }; });
+      return out;
+    },
+    watchParty(cb) {
+      subs.party = cb;
+      Promise.resolve().then(() => cb({ awards: Boolean(state.awards) }));
+      return () => { subs.party = null; };
+    },
+    setAwards(on) {
+      state.awards = on;
+      save();
+      subs.party && subs.party({ awards: on });
+      return Promise.resolve();
     },
     /** Demo only: one of the made-up guests "finds" the player. */
     botFindsYou() {
