@@ -23,6 +23,8 @@ export const PARTY = {
   // Clues stay locked until this moment, so early sign-ups all start together.
   // Add ?preview=1 to the link to try the hunt before then.
   partyLabel: "Saturday 14 Nov, 9:00pm",
+  // Named in the examples of what a party rule can be.
+  cardGame: "Kings",
   // The hosts start the hunt with a button once the room has filled up. If
   // nobody does, it opens by itself at this time.
   huntOpens: "2026-11-14T22:30:00-05:00",

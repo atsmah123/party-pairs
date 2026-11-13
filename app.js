@@ -44,7 +44,7 @@ const S = {
   authMsg: "",
   authBusy: false,
   guests: [], pairs: [], rules: [],
-  got: { guests: false, pairs: false },
+  got: { guests: false, pairs: false, rules: false },
   pendingMe: null,
   tab: [...TABS, "awards"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "hunt",
   party: {}, // { awards: true } once the hosts reveal the awards
@@ -171,8 +171,11 @@ function viewTop() {
 function viewTabs() {
   if (S.phase !== "app") return "";
   const names = { hunt: "Hunt", web: "Web", rules: "Rules", me: "Me", awards: "Awards" };
-  return `<div class="wrap tabs__in">${tabs().map((t) =>
-    `<button class="tab" data-act="tab" data-tab="${t}"${S.tab === t ? ' aria-current="page"' : ""}>${icon(t)}<span>${names[t]}</span></button>`).join("")}</div>`;
+  const fresh = unseenRules().length;
+  return `<div class="wrap tabs__in">${tabs().map((t) => {
+    const badge = t === "rules" && fresh ? `<span class="badge"><span aria-hidden="true">!</span>${fresh}<span class="sr"> new</span></span>` : "";
+    return `<button class="tab" data-act="tab" data-tab="${t}"${S.tab === t ? ' aria-current="page"' : ""}>${icon(t)}<span>${names[t]}</span>${badge}</button>`;
+  }).join("")}</div>`;
 }
 
 function viewLoading() {
@@ -371,6 +374,56 @@ function viewWebPanel() {
   return `${head}<p>Pair with them to see their card.</p>`;
 }
 
+// The guest who wrote the rule is named first.
+function rulePairName(id, by) {
+  const p = S.pairs.find((x) => x.id === id);
+  const order = p ? (p.b === by ? [p.b, p.a] : [p.a, p.b]) : [];
+  const names = order.map(guest).filter(Boolean).map((g) => g.name);
+  return names.length ? joinAnd(names) : "Two guests who left";
+}
+
+// ---------- new party rules: a badge on the Rules tab and a notice ----------
+
+const rulesSeenKey = () => "pairs-rules-seen:" + S.uid;
+function seenRules() {
+  try { return new Set(JSON.parse(readStore("localStorage", rulesSeenKey()) || "[]")); } catch { return new Set(); }
+}
+/** Rules this guest has not looked at yet. Their own do not count. */
+function unseenRules() {
+  if (S.phase !== "app" || !S.uid) return [];
+  const seen = seenRules();
+  return shownRules().filter((r) => r.by !== S.uid && !seen.has(r.id));
+}
+function markRulesSeen() {
+  const seen = seenRules();
+  const ids = shownRules().map((r) => r.id).filter((id) => !seen.has(id));
+  if (ids.length) writeStore("localStorage", rulesSeenKey(), JSON.stringify([...seen, ...ids]));
+}
+
+let knownRules = null;
+/** Called whenever rules or pairs change: tell the guest about rules that just arrived. */
+function noticeNewRules() {
+  if (!S.got.pairs || !S.got.rules || S.phase !== "app") return;
+  const now = shownRules();
+  const fresh = knownRules ? now.filter((r) => !knownRules.has(r.id) && r.by !== S.uid) : [];
+  knownRules = new Set(now.map((r) => r.id));
+  if (!fresh.length || S.tab === "rules") return;
+  const text = fresh.length === 1 ? `New party rule from ${rulePairName(fresh[0].id, fresh[0].by)}.` : `${fresh.length} new party rules.`;
+  showNotice(text + " Tap to read.");
+}
+
+function showNotice(text) {
+  const node = $("#notice");
+  $("#notice-text").textContent = text;
+  node.hidden = false;
+  if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    node.animate([{ opacity: 0, transform: "translateY(12px)" }, { opacity: 1, transform: "none" }], { duration: 300, easing: "cubic-bezier(.22, 1, .36, 1)" });
+  }
+  try { navigator.vibrate && navigator.vibrate(60); } catch { /* not allowed */ }
+  clearTimeout(showNotice.timer);
+  showNotice.timer = setTimeout(() => { node.hidden = true; }, 8000);
+}
+
 function myOpenRules() {
   const written = new Set(S.rules.map((r) => r.id));
   if (rulesFull()) return [];
@@ -378,20 +431,14 @@ function myOpenRules() {
 }
 
 function viewRules() {
-  // The guest who wrote the rule is named first.
-  const pairName = (id, by) => {
-    const p = S.pairs.find((x) => x.id === id);
-    const order = p ? (p.b === by ? [p.b, p.a] : [p.a, p.b]) : [];
-    const names = order.map(guest).filter(Boolean).map((g) => g.name);
-    return names.length ? joinAnd(names) : "Two guests who left";
-  };
+  const pairName = rulePairName;
   const open = myOpenRules().map((p) => {
     const other = guest(p.a === S.uid ? p.b : p.a);
     return `<form class="ruleform" data-form="rule" data-pair="${esc(p.id)}" novalidate>
       <div class="field">
         <label for="rule-${esc(p.id)}">Your party rule with ${esc(other.name)}</label>
         <textarea id="rule-${esc(p.id)}" data-draft="rule:${esc(p.id)}" rows="2" maxlength="${LIMITS.ruleMax}" aria-describedby="rule-err-${esc(p.id)}"></textarea>
-        <p class="field__hint">A rule for everyone here, like “whoever says ‘work’ takes a sip”.</p>
+        <p class="field__hint">For example, a ${esc(PARTY.cardGame)} rule (“draw a 7, swap seats”) or one for the whole room (“whoever says ‘work’ takes a sip”).</p>
         <p class="field__error" id="rule-err-${esc(p.id)}" role="status">${S.ruleErr === p.id ? "Write the rule first." : ""}</p>
       </div>
       <button class="btn btn--primary" type="submit">Add our rule</button>
@@ -405,6 +452,7 @@ function viewRules() {
   return `<p class="label">For the whole room</p>
     <h1>Party rules</h1>
     <p class="lead">The first ${LIMITS.maxRules} pairs who picked two of the same interests each add one rule for everyone. ${rules.length >= LIMITS.maxRules ? `All ${LIMITS.maxRules} are written.` : `${rules.length} of ${LIMITS.maxRules} written.`}</p>
+    <p class="note">A rule can be anything everyone here has to follow: a new rule for ${esc(PARTY.cardGame)} (“draw a 7, swap seats”), a rule for the room (“whoever says ‘work’ takes a sip”), or a forfeit (“last one on the dance floor does the dishes”).</p>
     ${open}${list}
     <button class="link" data-act="help">See how to play Pairs</button>`;
 }
@@ -580,6 +628,7 @@ function render() {
 
   document.body.dataset.phase = S.phase;
   if (S.tab === "awards" && !awardsOn()) S.tab = "hunt";
+  if (S.phase === "app" && S.tab === "rules" && S.got.rules) { markRulesSeen(); $("#notice").hidden = true; }
   const announcing = S.announce && awardsRevealed();
   document.body.dataset.sheet = S.sheet || S.help || announcing ? "open" : "";
   patch($("#top"), viewTop());
@@ -958,6 +1007,11 @@ document.addEventListener("click", (e) => {
   if (act) { e.preventDefault(); act(el); }
 });
 
+document.getElementById("notice").addEventListener("click", () => {
+  $("#notice").hidden = true;
+  if (S.phase === "app") { S.sheet = null; S.help = false; go("rules"); }
+});
+
 document.addEventListener("submit", (e) => {
   const form = e.target.closest("[data-form]");
   if (!form) return;
@@ -1053,8 +1107,8 @@ function begin(account) {
 
   backend.watch({
     onGuests,
-    onPairs(list) { S.pairs = list; S.got.pairs = true; reconcile(); render(); },
-    onRules(list) { S.rules = list; render(); },
+    onPairs(list) { S.pairs = list; S.got.pairs = true; reconcile(); noticeNewRules(); render(); },
+    onRules(list) { S.rules = list; S.got.rules = true; noticeNewRules(); render(); },
     onError(message) {
       if (S.phase === "loading") { S.phase = "error"; S.error = message; render(); } else fail(message);
     },
