@@ -157,15 +157,6 @@ function sharedSentence(mine, theirs) {
   return parts.join(" ") || "You share no interests on paper.";
 }
 
-function countdown() {
-  const ms = Date.parse(PARTY.huntOpens) - Date.now();
-  const mins = Math.max(1, Math.ceil(ms / 60000));
-  const d = Math.floor(mins / 1440), h = Math.floor((mins % 1440) / 60), m = mins % 60;
-  if (d) return `${plural(d, "day", "days")} and ${plural(h, "hour", "hours")}`;
-  if (h) return `${plural(h, "hour", "hours")} and ${plural(m, "minute", "minutes")}`;
-  return plural(m, "minute", "minutes");
-}
-
 // ---------- views ----------
 
 function viewTop() {
@@ -215,7 +206,7 @@ function howToPlay(heading = true) {
 
 function viewWelcome() {
   return `<div class="wrap view view--welcome">
-    <p class="label">${esc(PARTY.huntOpensLabel)}</p>
+    <p class="label">${esc(PARTY.partyLabel)}</p>
     <h1>Pairs, the party game</h1>
     <p class="lead">Find the guests you have the most in common with.</p>
     ${howToPlay()}
@@ -299,14 +290,14 @@ function viewHunt() {
 
   if (!huntOpen()) {
     return `<p class="label">The hunt</p>
-      <h1>Clues open ${esc(PARTY.huntOpensLabel)}</h1>
-      <p class="lead">${countdown()} to go. ${plural(S.guests.length, "guest has", "guests have")} joined so far. Your first clue is dealt from everyone who is in by then.</p>
+      <h1>The game starts at the party</h1>
+      <p class="lead">The hosts start the hunt once the room fills up, by ${esc(PARTY.huntOpensLabel)} at the latest. ${plural(S.guests.length, "guest has", "guests have")} joined so far.</p>
       ${cardBack}
       <button class="btn btn--secondary" data-act="tab" data-tab="web">See who has joined</button>
       ${howToPlay()}`;
   }
   const preview = PREVIEW && !DEMO && Date.now() < Date.parse(PARTY.huntOpens)
-    ? `<p class="banner">Preview. The hunt is unlocked on this phone only until ${esc(PARTY.huntOpensLabel)}.</p>` : "";
+    ? `<p class="banner">Preview. The hunt is unlocked on this phone only until the game starts.</p>` : "";
 
   const target = currentTarget();
   if (!target) {
@@ -444,7 +435,7 @@ function viewMe() {
     ${metList}
     ${HOST ? `<h2>Host controls</h2>
       <p class="note">Only phones opened with the host link see this. ${awardsRevealed() ? "The game is over and every guest can see the awards."
-        : huntOpenForAll() ? "The hunt is open for every guest." : `The hunt opens by itself ${esc(PARTY.huntOpensLabel)}.`}</p>
+        : huntOpenForAll() ? "The hunt is open for every guest." : `Guests are waiting for you to start the hunt. If nobody does, it opens by itself at ${esc(PARTY.huntOpensLabel)}.`}</p>
       <div class="btn-col btn-col--tight">
         ${awardsRevealed() ? "" : S.party.started && Date.now() < Date.parse(PARTY.huntOpens)
           ? `<button class="btn btn--secondary" data-act="hunt-stop">Close the hunt again</button>`

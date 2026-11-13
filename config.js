@@ -22,8 +22,11 @@ export const PARTY = {
   title: "Atharva and Tabitha’s 24th",
   // Clues stay locked until this moment, so early sign-ups all start together.
   // Add ?preview=1 to the link to try the hunt before then.
-  huntOpens: "2026-11-14T21:00:00-05:00",
-  huntOpensLabel: "Saturday 14 Nov at 9:00pm",
+  partyLabel: "Saturday 14 Nov, 9:00pm",
+  // The hosts start the hunt with a button once the room has filled up. If
+  // nobody does, it opens by itself at this time.
+  huntOpens: "2026-11-14T22:30:00-05:00",
+  huntOpensLabel: "10:30pm on Saturday",
   // A host ends the game with "End the game and reveal the awards" (open the
   // site once with ?host=1 to get the host controls). To end it at a set time
   // as well, put a time here, for example "2026-11-15T00:30:00-05:00".

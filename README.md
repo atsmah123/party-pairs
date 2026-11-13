@@ -17,7 +17,7 @@ It is a static site (GitHub Pages) with Firebase for sign-in and shared data. Th
 ## How the game works
 
 1. **Card.** A guest picks a name, a face, 3 to 8 interests and one secret fact. They get a 4-letter code.
-2. **Clue.** From 9:00pm on Saturday 14 Nov, "Deal my clue" picks their closest match among guests they have not met. The clue says what the two have in common (kept vague: "loud guitar music", not "Metal") and shows the other guest's secret fact. Two nudges are available: the face on the other guest's card, then the first letter of their name.
+2. **Clue.** Once the hosts start the hunt, "Deal my clue" picks their closest match among guests they have not met. The clue says what the two have in common (kept vague: "loud guitar music", not "Metal") and shows the other guest's secret fact. Two nudges are available: the face on the other guest's card, then the first letter of their name.
 3. **Pair.** When they think they have found the guest, they ask for the code at the top of that guest's screen and type it in. A right code pairs them on both phones and gives them something to talk about. A wrong one costs a sip.
 4. **Party rule.** A pair who picked two of the same interests adds one rule for the whole room ("whoever says 'work' takes a sip"). The list closes after the first 10.
 5. **Rank.** A guest's card starts as a 2 and climbs one rank per pair, up to an ace.
@@ -28,7 +28,7 @@ Matching uses a tree of interests in `data.js`: the same tag scores 1, tags in t
 
 Open the site once with `?host=1` on each host's phone. That adds **Host controls** to the Me tab.
 
-- **Start:** the hunt opens by itself at the time in `config.js` (Saturday 14 Nov, 9:00pm). **Start the hunt now** opens it earlier for everyone.
+- **Start:** tap **Start the hunt now** once the room has filled up. If nobody does, the hunt opens by itself at the time in `config.js` (10:30pm on Saturday 14 Nov).
 - **End:** **End the game and reveal the awards** closes the hunt on every phone and shows the awards. It can be undone.
 
 ## Awards
