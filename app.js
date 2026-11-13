@@ -76,7 +76,15 @@ const guestIds = () => new Set(S.guests.map((g) => g.id));
 const livePairs = () => { const ids = guestIds(); return S.pairs.filter((p) => ids.has(p.a) && ids.has(p.b)); };
 const metSet = (uid = S.uid) => M.partnersOf(uid, S.pairs, guestIds());
 const guest = (id) => S.guests.find((g) => g.id === id);
-const huntOpen = () => PREVIEW || Date.now() >= Date.parse(PARTY.huntOpens);
+const huntOpenForAll = () => Boolean(S.party.started) || Date.now() >= Date.parse(PARTY.huntOpens);
+const huntOpen = () => PREVIEW || huntOpenForAll();
+// Party rules: the first few pairs who picked the same interests each add one rule for the room.
+const earnsRule = (a, b) => M.compare(a.interests, b.interests).exact.length >= LIMITS.identicalForRule;
+function shownRules() {
+  const live = new Set(livePairs().map((p) => p.id));   // a rule shows only while both its guests are still here
+  return S.rules.filter((r) => live.has(r.id)).sort((a, b) => a.at - b.at).slice(0, LIMITS.maxRules);
+}
+const rulesFull = () => shownRules().length >= LIMITS.maxRules;
 const awardsRevealed = () => Boolean(S.party.awards) || (PARTY.awardsAt ? Date.now() >= Date.parse(PARTY.awardsAt) : false);
 const awardsOn = () => awardsRevealed() || S.awardsPreview;
 const tabs = () => (awardsOn() ? [...TABS, "awards"] : TABS);
@@ -196,7 +204,7 @@ const STEPS = [
   ["spade", "Make your card", "A face, a few interests, one secret fact."],
   ["heart", "Get a clue", "It points to the guest most like you and shows their secret fact."],
   ["club", "Find them and swap a code", "Ask around, then type their 4-letter code. A wrong guess costs a sip."],
-  ["diamond", "Meet the room", `Every pair joins the guest web. Share two interests and you add a house rule for ${PARTY.cardGame}.`],
+  ["diamond", "Meet the room", `Every pair joins the guest web. The first ${LIMITS.maxRules} pairs with two picks in common add a party rule.`],
 ];
 function howToPlay(heading = true) {
   return `${heading ? `<p class="label steps__head">How to play</p>` : ""}
@@ -280,6 +288,14 @@ function viewHunt() {
   const others = S.guests.filter((g) => g.id !== S.uid);
   const met = metSet();
   const cardBack = `<div class="cardback" aria-hidden="true">${suitSvg("spade")}</div>`;
+
+  if (awardsRevealed()) {
+    return `<p class="label">The hunt</p>
+      <h1>The game is over</h1>
+      <p class="lead">The hosts have called time. You met ${met.size} of ${plural(others.length, "guest", "guests")}.</p>
+      ${m ? cardHtml(m) : ""}
+      <button class="btn btn--primary" data-act="tab" data-tab="awards">See the awards</button>`;
+  }
 
   if (!huntOpen()) {
     return `<p class="label">The hunt</p>
@@ -366,6 +382,7 @@ function viewWebPanel() {
 
 function myOpenRules() {
   const written = new Set(S.rules.map((r) => r.id));
+  if (rulesFull()) return [];
   return livePairs().filter((p) => p.unlock && (p.a === S.uid || p.b === S.uid) && !written.has(p.id));
 }
 
@@ -381,22 +398,22 @@ function viewRules() {
     const other = guest(p.a === S.uid ? p.b : p.a);
     return `<form class="ruleform" data-form="rule" data-pair="${esc(p.id)}" novalidate>
       <div class="field">
-        <label for="rule-${esc(p.id)}">Your house rule with ${esc(other.name)}</label>
+        <label for="rule-${esc(p.id)}">Your party rule with ${esc(other.name)}</label>
         <textarea id="rule-${esc(p.id)}" data-draft="rule:${esc(p.id)}" rows="2" maxlength="${LIMITS.ruleMax}" aria-describedby="rule-err-${esc(p.id)}"></textarea>
+        <p class="field__hint">A rule for everyone here, like “whoever says ‘work’ takes a sip”.</p>
         <p class="field__error" id="rule-err-${esc(p.id)}" role="status">${S.ruleErr === p.id ? "Write the rule first." : ""}</p>
       </div>
       <button class="btn btn--primary" type="submit">Add our rule</button>
     </form>`;
   }).join("");
-  // A rule shows only while both guests who earned it are still at the party.
-  const live = new Set(livePairs().map((p) => p.id));
-  const rules = S.rules.filter((r) => live.has(r.id)).sort((a, b) => b.at - a.at);
+  const rules = shownRules();
   const list = rules.length
-    ? `<ol class="rows">${rules.map((r) => `<li class="rows__row"><p class="rows__text">${esc(r.text)}</p><p class="note">${esc(pairName(r.id, r.by))}</p></li>`).join("")}</ol>`
-    : `<p class="note">No house rules yet.</p>`;
-  return `<p class="label">${esc(PARTY.cardGame)}</p>
-    <h1>House rules</h1>
-    <p class="lead">A pair that shares ${LIMITS.sharedForRule} or more interests adds one rule. Read them out before the next round.</p>
+    ? `<ol class="rows">${rules.map((r, i) => `<li class="rows__row rule"><span class="board__place">${i + 1}</span>
+        <div><p class="rows__text">${esc(r.text)}</p><p class="note">${esc(pairName(r.id, r.by))}</p></div></li>`).join("")}</ol>`
+    : `<p class="note">No party rules yet.</p>`;
+  return `<p class="label">For the whole room</p>
+    <h1>Party rules</h1>
+    <p class="lead">The first ${LIMITS.maxRules} pairs who picked two of the same interests each add one rule for everyone. ${rules.length >= LIMITS.maxRules ? `All ${LIMITS.maxRules} are written.` : `${rules.length} of ${LIMITS.maxRules} written.`}</p>
     ${open}${list}
     <button class="link" data-act="help">See how to play Pairs</button>`;
 }
@@ -426,9 +443,13 @@ function viewMe() {
     <h2>Guests you have met</h2>
     ${metList}
     ${HOST ? `<h2>Host controls</h2>
-      <p class="note">Only phones opened with the host link see this. ${awardsRevealed() ? "Every guest can see the awards now." : "Guests can’t see the awards until you reveal them."}</p>
+      <p class="note">Only phones opened with the host link see this. ${awardsRevealed() ? "The game is over and every guest can see the awards."
+        : huntOpenForAll() ? "The hunt is open for every guest." : `The hunt opens by itself ${esc(PARTY.huntOpensLabel)}.`}</p>
       <div class="btn-col btn-col--tight">
-        <button class="btn btn--secondary" data-act="awards-toggle">${S.party.awards ? "Hide the awards again" : "Reveal the awards to everyone"}</button>
+        ${awardsRevealed() ? "" : S.party.started && Date.now() < Date.parse(PARTY.huntOpens)
+          ? `<button class="btn btn--secondary" data-act="hunt-stop">Close the hunt again</button>`
+          : huntOpenForAll() ? "" : `<button class="btn btn--secondary" data-act="hunt-start">Start the hunt now</button>`}
+        <button class="btn btn--secondary" data-act="awards-toggle">${S.party.awards ? "Hide the awards and reopen the game" : "End the game and reveal the awards"}</button>
         ${awardsRevealed() ? "" : `<button class="btn btn--secondary" data-act="awards-preview">Preview the awards on this phone</button>`}
       </div>` : ""}
     <div class="leave">${leave}</div>`;
@@ -513,7 +534,8 @@ function viewSheet() {
   if (!m || !g) return "";
   const cmp = M.compare(m.interests, g.interests);
   const id = M.pairId(m.id, g.id);
-  const canRule = cmp.shared >= LIMITS.sharedForRule && !S.rules.some((r) => r.id === id);
+  const canRule = earnsRule(m, g) && !rulesFull() && !S.rules.some((r) => r.id === id);
+  const same = M.sharedLabels(m.interests, g.interests).exact;
   return `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-h">
     <div class="wrap sheet__in">
       <div class="duo" aria-hidden="true">
@@ -526,9 +548,9 @@ function viewSheet() {
       <p class="lead">${esc(sharedSentence(m.interests, g.interests))}</p>
       <div class="sheet__block"><p class="label">Start with this</p><p class="prompt">${esc(M.promptFor(m, g))}</p></div>
       ${S.sheet.role === "finder" ? "" : `<div class="sheet__block"><p class="label">Their secret fact</p><p class="quote">“${esc(g.fact)}”</p></div>`}
-      ${canRule ? `<p class="note">You share ${cmp.shared} interests, so the two of you add one house rule for ${esc(PARTY.cardGame)}.</p>` : ""}
+      ${canRule ? `<p class="note">You both picked ${esc(joinAnd(same.slice(0, 3)))}, so the two of you add a party rule for the whole room.</p>` : ""}
       <div class="btn-col">
-        ${canRule ? `<button class="btn btn--primary" data-act="sheet-rule">Write our house rule</button><button class="btn btn--secondary" data-act="sheet-close">Go back to the hunt</button>`
+        ${canRule ? `<button class="btn btn--primary" data-act="sheet-rule">Write our party rule</button><button class="btn btn--secondary" data-act="sheet-close">Go back to the hunt</button>`
           : `<button class="btn btn--primary" data-act="sheet-close">Go back to the hunt</button>`}
       </div>
     </div>
@@ -843,7 +865,13 @@ const actions = {
     const on = !S.party.awards;
     // The host who reveals the awards does not need to be told about it.
     if (on) writeStore("localStorage", "pairs-awards-seen:" + S.uid, "1");
-    Promise.resolve(backend.setAwards(on)).catch((e) => { console.error(e); fail(explain(e)); });
+    Promise.resolve(backend.setParty({ awards: on })).catch((e) => { console.error(e); fail(explain(e)); });
+  },
+  "hunt-start"() {
+    Promise.resolve(backend.setParty({ started: true })).catch((e) => { console.error(e); fail(explain(e)); });
+  },
+  "hunt-stop"() {
+    Promise.resolve(backend.setParty({ started: false })).catch((e) => { console.error(e); fail(explain(e)); });
   },
   "sheet-rule"() {
     const id = M.pairId(S.uid, S.sheet.other);
@@ -877,6 +905,7 @@ const forms = {
   },
   code() {
     const m = me(), target = currentTarget();
+    if (awardsRevealed()) return;
     const code = M.cleanCode(S.draft.code);
     const say = (text) => { S.huntMsg = text; render(); };
     if (!target) return;
@@ -889,7 +918,7 @@ const forms = {
 
     const id = M.pairId(S.uid, g.id);
     const [a, b] = S.uid < g.id ? [S.uid, g.id] : [g.id, S.uid];
-    const unlock = M.compare(m.interests, g.interests).shared >= LIMITS.sharedForRule;
+    const unlock = earnsRule(m, g);
     markSeen([id]);
     S.draft.code = ""; S.huntMsg = ""; S.revealed = false;
     S.sheet = { other: g.id, role: "finder" };

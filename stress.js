@@ -134,7 +134,7 @@ async function run() {
         const other = pick.guest;
         const id = M.pairId(b.uid, other.id);
         const [a, c] = b.uid < other.id ? [b.uid, other.id] : [other.id, b.uid];
-        const unlock = M.compare(mine.interests, other.interests).shared >= LIMITS.sharedForRule;
+        const unlock = M.compare(mine.interests, other.interests).exact.length >= LIMITS.identicalForRule;
         wanted.add(id);
         const t = now();
         try {
@@ -161,17 +161,17 @@ async function run() {
     report.spread = spread;
     report.doubles = doubles;
 
-    // 5. Pairs that earned a house rule write one.
-    say("Writing house rules");
+    // 5. The first pairs that earned a party rule write one.
+    say("Writing party rules");
     const pairsNow = new Map(bots[0].pairs.map((p) => [p.id, p]));
-    const earners = [...made].filter(([id, m]) => m.unlock && pairsNow.get(id) && pairsNow.get(id).by === m.by.uid);
+    const earners = [...made].filter(([id, m]) => m.unlock && pairsNow.get(id) && pairsNow.get(id).by === m.by.uid).slice(0, LIMITS.maxRules);
     let rulesOk = 0;
     await Promise.all(earners.map(async ([id, m], k) => {
       try { await m.by.api.saveRule(id, { text: `Test rule ${k + 1}, made by the stress test.`, by: m.by.uid }); rulesOk++; m.rule = true; }
-      catch (e) { fail(`A house rule could not be saved: ${explain(e)}`); }
+      catch (e) { fail(`A party rule could not be saved: ${explain(e)}`); }
     }));
     const rulesSeen = await waitFor(() => bots.every((b) => earners.every(([id, m]) => !m.rule || b.rules.some((x) => x.id === id))));
-    if (rulesSeen === null) fail("Some guests could not see every house rule.");
+    if (rulesSeen === null) fail("Some guests could not see every party rule.");
     report.rules = rulesOk;
 
     // 6. Does every guest see the same party?
@@ -221,7 +221,7 @@ function show(r) {
   if (r.pairWrites) rows.push(row(`Pairs made in ${r.rounds} rounds`, `${r.pairs} (${timing(r.pairWrites)})`));
   if (r.doubles !== undefined) rows.push(row("Two guests entering each other’s code in the same instant", `${r.doubles}, all handled`));
   if (r.spread && r.spread.length) rows.push(row("Every guest could see a round’s pairs after", `slowest round ${ms(slowest(r.spread))}`));
-  if (r.rules !== undefined) rows.push(row("House rules written", String(r.rules)));
+  if (r.rules !== undefined) rows.push(row("Party rules written", String(r.rules)));
   if (r.codes !== undefined) rows.push(row("Codes", r.codes === r.signedIn ? "all different" : `${r.signedIn - r.codes} shared a code`));
   if (r.agree !== undefined) rows.push(row("Every guest ended up seeing the same party", r.agree ? "Yes" : "No"));
   if (r.reads !== undefined) rows.push(row("Database reads this run used", `${r.reads.toLocaleString("en-US")} of the ${FREE_READS.toLocaleString("en-US")} free each day`));

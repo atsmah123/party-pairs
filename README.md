@@ -19,14 +19,21 @@ It is a static site (GitHub Pages) with Firebase for sign-in and shared data. Th
 1. **Card.** A guest picks a name, a face, 3 to 8 interests and one secret fact. They get a 4-letter code.
 2. **Clue.** From 9:00pm on Saturday 14 Nov, "Deal my clue" picks their closest match among guests they have not met. The clue says what the two have in common (kept vague: "loud guitar music", not "Metal") and shows the other guest's secret fact. Two nudges are available: the face on the other guest's card, then the first letter of their name.
 3. **Pair.** When they think they have found the guest, they ask for the code at the top of that guest's screen and type it in. A right code pairs them on both phones and gives them something to talk about. A wrong one costs a sip.
-4. **House rule.** A pair that shares two or more interests adds one house rule for Kings. Rules sit in a list everyone can read out.
+4. **Party rule.** A pair who picked two of the same interests adds one rule for the whole room ("whoever says 'work' takes a sip"). The list closes after the first 10.
 5. **Rank.** A guest's card starts as a 2 and climbs one rank per pair, up to an ace.
 
 Matching uses a tree of interests in `data.js`: the same tag scores 1, tags in the same group score 0.7 (rock and metal), tags in the same category score 0.3.
 
+## Running the night
+
+Open the site once with `?host=1` on each host's phone. That adds **Host controls** to the Me tab.
+
+- **Start:** the hunt opens by itself at the time in `config.js` (Saturday 14 Nov, 9:00pm). **Start the hunt now** opens it earlier for everyone.
+- **End:** **End the game and reveal the awards** closes the hunt on every phone and shows the awards. It can be undone.
+
 ## Awards
 
-Nothing about the awards shows during the party. When a host taps **Reveal the awards to everyone** (Me tab, on a phone that has opened the site with `?host=1`), every phone gets an "The awards are in" screen and a fifth tab.
+Nothing about the awards shows during the party. When a host ends the game, every phone gets a "The awards are in" screen and a fifth tab.
 
 - **Your night:** each guest's own recap: how many they met, their place, their closest and unlikeliest match.
 - **Awards:** most connected, the detective, most wanted, closest match, unlikeliest pair, first and last pair of the night, the bridge, tightest circle, furthest apart, opposites attract, birds of a feather, one of a kind, the room's obsession, thirstiest, sharp eyes, hard to please. An award only appears when the night produced enough to decide it.
@@ -50,7 +57,7 @@ Firebase also allows 100 new sign-ups an hour from one network. Guests who join 
 
 ## Stress test
 
-Open `stress.html` on the live site and tap **Start the test**. It signs in 40 guests without Google on the real Firebase project from that one page, saves 40 cards in the same instant, plays 3 rounds in which every guest pairs at once, writes house rules, and checks that all 40 ended up seeing the same party. It reports how long each step took and how many database reads the run used, then removes the test guests, pairs and rules.
+Open `stress.html` on the live site and tap **Start the test**. It signs in 40 guests without Google on the real Firebase project from that one page, saves 40 cards in the same instant, plays 3 rounds in which every guest pairs at once, writes party rules, and checks that all 40 ended up seeing the same party. It reports how long each step took and how many database reads the run used, then removes the test guests, pairs and rules.
 
 - `?n=40` sets the number of guests (2 to 60) and `&rounds=3` the rounds (1 to 6).
 - Test guests only pair with each other. Real guests who are signed up will see them appear in the guest web for about a minute.
@@ -75,10 +82,10 @@ Repository **Settings > Pages > Deploy from a branch > `main` / root**. The site
 
 ## Changing things
 
-- Party name, start time and the card game: `config.js`.
+- Party name, start time, and how many party rules there are: `config.js`.
 - Interests, clue wording and conversation prompts: `data.js`.
 - To clear the party and start over, delete the `guests`, `pairs`, `rules`, `stats` and `party` collections in the Firebase console.
-- To remove one guest or one house rule, delete that document in the console.
+- To remove one guest or one party rule, delete that document in the console.
 
 ## Files
 

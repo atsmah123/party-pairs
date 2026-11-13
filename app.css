@@ -247,6 +247,8 @@ input.code { height: 64px; font-size: 28px; text-align: center; letter-spacing: 
 .board__count { flex: none; font-size: 14px; line-height: 20px; color: var(--p-muted); }
 .board--me .board__place, .board--me .board__count { color: var(--p-ink); }
 .btn-col--tight { margin-top: 0; }
+.rule { flex-direction: row; align-items: flex-start; gap: var(--s-3); }
+.rule .board__place { line-height: 26px; }
 .sheet .cardback { margin-bottom: var(--s-4); }
 .cardback .suit--diamond { fill: var(--accent-lit); }
 .leave { margin-top: var(--s-5); display: flex; flex-direction: column; gap: var(--s-3); }

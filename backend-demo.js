@@ -50,7 +50,7 @@ export async function connect() {
     const id = pairId(x.id, y.id);
     if (state.pairs.some((p) => p.id === id)) return null;
     const [a, b] = id.split("_");
-    const pair = { id, a, b, by, unlock: compare(x.interests, y.interests).shared >= 2, at: Date.now() };
+    const pair = { id, a, b, by, unlock: compare(x.interests, y.interests).exact.length >= 2, at: Date.now() };
     state.pairs.push(pair);
     return pair;
   };
@@ -113,13 +113,13 @@ export async function connect() {
     },
     watchParty(cb) {
       subs.party = cb;
-      Promise.resolve().then(() => cb({ awards: Boolean(state.awards) }));
+      Promise.resolve().then(() => cb({ awards: Boolean(state.awards), started: Boolean(state.started) }));
       return () => { subs.party = null; };
     },
-    setAwards(on) {
-      state.awards = on;
+    setParty(change) {
+      Object.assign(state, change);
       save();
-      subs.party && subs.party({ awards: on });
+      subs.party && subs.party({ awards: Boolean(state.awards), started: Boolean(state.started) });
       return Promise.resolve();
     },
     /** Demo only: one of the made-up guests "finds" the player. */

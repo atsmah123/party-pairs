@@ -24,10 +24,9 @@ export const PARTY = {
   // Add ?preview=1 to the link to try the hunt before then.
   huntOpens: "2026-11-14T21:00:00-05:00",
   huntOpensLabel: "Saturday 14 Nov at 9:00pm",
-  cardGame: "Kings",
-  // The awards appear when a host taps "Reveal the awards" (open the site once
-  // with ?host=1 to get that button). To reveal them at a set time as well,
-  // put a time here, for example "2026-11-15T00:30:00-05:00".
+  // A host ends the game with "End the game and reveal the awards" (open the
+  // site once with ?host=1 to get the host controls). To end it at a set time
+  // as well, put a time here, for example "2026-11-15T00:30:00-05:00".
   awardsAt: null,
 };
 
@@ -37,5 +36,8 @@ export const LIMITS = {
   nameMax: 24,
   factMax: 140,
   ruleMax: 140,
-  sharedForRule: 2,
+  // Party rules: a pair who picked this many of the same interests adds one
+  // rule for the room, until the list holds maxRules.
+  identicalForRule: 2,
+  maxRules: 10,
 };

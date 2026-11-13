@@ -134,12 +134,13 @@ export async function connect({ name, cache = true } = {}) {
       snap.forEach((d) => { out[d.id] = d.data(); });
       return out;
     },
-    /** One small document says whether the hosts have revealed the awards. */
+    /** One small document holds the hosts' switches. */
     watchParty(cb) {
       return onSnapshot(doc(db, "party", "state"), (snap) => cb(snap.exists() ? snap.data() : {}), () => {});
     },
-    setAwards(on) {
-      return setDoc(doc(db, "party", "state"), { awards: on, at: serverTimestamp() });
+    /** Host switches: { started: true } opens the hunt early, { awards: true } ends the game. */
+    setParty(change) {
+      return setDoc(doc(db, "party", "state"), { ...change, at: serverTimestamp() }, { merge: true });
     },
     /** Stress test only: delete this sign-in altogether. */
     removeAccount() {
